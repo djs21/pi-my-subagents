@@ -143,9 +143,13 @@ export function createSurfaceSplit(
   const backend = requireMuxBackend();
 
   if (backend === "herdr") {
-    const currentPane = process.env.HERDR_PANE_ID;
-    if (!currentPane) throw new Error("HERDR_PANE_ID not set");
-    const result = execFileSync("herdr", ["pane", "split", currentPane, "--direction", "right", "--no-focus"], { encoding: "utf8" });
+    const targetPane = fromSurface ?? process.env.HERDR_PANE_ID;
+    if (!targetPane) throw new Error("No target pane for herdr split");
+    const dir = direction === "left" || direction === "right" ? "right" : "down";
+    const result = execFileSync(
+      "herdr", ["pane", "split", targetPane, "--direction", dir, "--no-focus"],
+      { encoding: "utf8" },
+    );
     const parsed = JSON.parse(result);
     const paneId = parsed?.result?.pane?.pane_id;
     if (!paneId) throw new Error("Failed to parse herdr pane id");
