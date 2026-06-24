@@ -4,6 +4,16 @@
  */
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import {
+  Box,
+  Container,
+  type Component,
+  fuzzyFilter,
+  getKeybindings,
+  Input,
+  Spacer,
+  Text,
+} from "@earendil-works/pi-tui";
 import { discoverAgentNames, discoverExtensions, discoverSkills, formatModelLabel, validateModel, validatePath, type ExtensionOption, type SkillOption } from "./discovery.ts";
 
 // ─── Agent Picker ───────────────────────────────────────────────
@@ -58,6 +68,14 @@ export async function pickScope(ctx: ExtensionCommandContext): Promise<"project"
 
 // ─── Model Editor ───────────────────────────────────────────────
 
+interface ModelOption {
+  value: string;
+  label: string;
+  provider: string;
+  id: string;
+  searchText: string;
+}
+
 export async function editModel(
   _agentName: string,
   currentModel: string | undefined,
@@ -69,30 +87,150 @@ export async function editModel(
     allModels = modelRegistry?.getAvailable() ?? [];
   } catch {}
 
-  if (allModels.length > 0) {
-    const modelOptions: string[] = [];
-    if (currentModel) {
-      modelOptions.push(`🔄 ${currentModel} (current)`);
-    }
-    for (const m of allModels) {
-      modelOptions.push(formatModelLabel(m));
-    }
-    modelOptions.push("✏️ Ketik manual...", "❌ Batal");
+  // Build options with current model + all available + manual entry
+  const options: ModelOption[] = [];
 
-    const choice = await ctx.ui.select(`Pilih model untuk "${_agentName}":`, modelOptions);
-    if (!choice || choice === "❌ Batal") return undefined;
-    if (choice === "✏️ Ketik manual...") {
-      return askManualModel(ctx, currentModel);
-    }
-    if (choice.startsWith("🔄 ")) return currentModel;
-    const parenMatch = choice.match(/\((\S+\/\S+)\)/);
-    if (parenMatch) return parenMatch[1];
-    const directMatch = choice.match(/^(\S+\/\S+)/);
-    if (directMatch) return directMatch[1];
-    return choice;
+  if (currentModel) {
+    const parts = currentModel.split("/");
+    options.push({
+      value: currentModel,
+      label: `🔄 ${currentModel} (current)`,
+      provider: parts[0] ?? "",
+      id: parts.slice(1).join("/") ?? currentModel,
+      searchText: `${currentModel} current`,
+    });
   }
 
-  return askManualModel(ctx, currentModel);
+  for (const m of allModels) {
+    const label = formatModelLabel(m);
+    options.push({
+      value: `${m.provider}/${m.id}`,
+      label,
+      provider: m.provider,
+      id: m.id,
+      searchText: `${m.provider} ${m.id} ${m.name ?? ""} ${label}`,
+    });
+  }
+
+  // Manual entry always last
+  options.push({
+    value: "__manual__",
+    label: "✏️ Ketik manual...",
+    provider: "",
+    id: "__manual__",
+    searchText: "manual ketik manual",
+  });
+
+  // Show custom fuzzy model selector via ctx.ui.custom()
+  const result = await ctx.ui.custom<string | undefined>((tui, theme, _kb, done) => {
+    const container = new Container();
+    let filtered = options;
+    let selectedIndex = 0;
+    const maxVisible = 12;
+
+    const searchInput = new Input();
+    if (currentModel) searchInput.setValue(currentModel);
+    searchInput.onSubmit = () => {
+      const selected = filtered[selectedIndex];
+      if (!selected) return;
+      if (selected.value === "__manual__") {
+        askManualModel(ctx, currentModel).then(done);
+        return;
+      }
+      done(selected.value);
+    };
+
+    // Build UI
+    container.addChild(new Box(theme.fg("accent", "━"), 0, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("accent", theme.bold("🔍 Pilih Model (ketik untuk mencari)")), 0, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(searchInput);
+    container.addChild(new Spacer(1));
+
+    const listContainer = new Container();
+    container.addChild(listContainer);
+
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(
+      theme.fg("dim", "↑↓ navigate • enter select • esc cancel • ketik untuk fuzzy search"), 0, 0,
+    ));
+    container.addChild(new Box(theme.fg("accent", "━"), 0, 0));
+
+    function filterModels(query: string): void {
+      filtered = query
+        ? fuzzyFilter(options, query, (o) => o.searchText)
+        : options;
+      selectedIndex = Math.min(selectedIndex, Math.max(0, filtered.length - 1));
+      renderList();
+    }
+
+    function renderList(): void {
+      listContainer.clear();
+      if (filtered.length === 0) {
+        listContainer.addChild(new Text(theme.fg("muted", "  Tidak ada model yang cocok"), 0, 0));
+        return;
+      }
+      const startIdx = Math.max(0, Math.min(
+        selectedIndex - Math.floor(maxVisible / 2),
+        filtered.length - maxVisible,
+      ));
+      const endIdx = Math.min(startIdx + maxVisible, filtered.length);
+      for (let i = startIdx; i < endIdx; i++) {
+        const item = filtered[i];
+        const isSelected = i === selectedIndex;
+        const label = isSelected
+          ? theme.fg("accent", `→ ${item.label}`)
+          : `  ${theme.fg("text", item.label)}`;
+        listContainer.addChild(new Text(label, 0, 0));
+      }
+      if (startIdx > 0 || endIdx < filtered.length) {
+        listContainer.addChild(new Text(
+          theme.fg("muted", `  (${selectedIndex + 1}/${filtered.length})`),
+          0, 0,
+        ));
+      }
+    }
+
+    const component: Component = {
+      render(width: number): string[] { return container.render(width); },
+      invalidate(): void { container.invalidate(); },
+      handleInput(data: string): void {
+        const kb = getKeybindings();
+        if (kb.matches(data, "tui.select.up")) {
+          if (filtered.length === 0) return;
+          selectedIndex = selectedIndex === 0 ? filtered.length - 1 : selectedIndex - 1;
+          renderList();
+          tui.requestRender();
+        } else if (kb.matches(data, "tui.select.down")) {
+          if (filtered.length === 0) return;
+          selectedIndex = selectedIndex === filtered.length - 1 ? 0 : selectedIndex + 1;
+          renderList();
+          tui.requestRender();
+        } else if (kb.matches(data, "tui.select.confirm")) {
+          const selected = filtered[selectedIndex];
+          if (!selected) return;
+          if (selected.value === "__manual__") {
+            askManualModel(ctx, currentModel).then(done);
+            return;
+          }
+          done(selected.value);
+        } else if (kb.matches(data, "tui.select.cancel")) {
+          done(undefined);
+        } else {
+          searchInput.handleInput(data);
+          filterModels(searchInput.getValue());
+          tui.requestRender();
+        }
+      },
+    };
+
+    renderList();
+    return component;
+  });
+
+  if (result === undefined) return undefined;
+  return result;
 }
 
 async function askManualModel(ctx: ExtensionCommandContext, currentModel?: string): Promise<string | undefined> {
