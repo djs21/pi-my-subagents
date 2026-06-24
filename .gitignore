@@ -1,0 +1,23 @@
+node_modules/
+config.json
+.pi/*
+!.pi/skills/
+!.pi/settings.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env
+.env
+.env.*
+
+# Generated artifacts (subagent launch scripts, context files)
+artifacts/
+
+# Test output (if any)
+test/coverage/
