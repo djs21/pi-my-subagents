@@ -183,19 +183,14 @@ export default function (pi: ExtensionAPI) {
       // assistant message, mistaking the crash for a successful completion.
       const errorInfo = findLatestAssistantError(messages);
       const sessionFile = process.env.PI_SUBAGENT_SESSION;
-      if (errorInfo && sessionFile) {
+      if (sessionFile) {
         try {
-          writeFileSync(
-            `${sessionFile}.exit`,
-            JSON.stringify({
-              type: "error",
-              errorMessage: errorInfo.errorMessage,
-              stopReason: errorInfo.stopReason,
-            }),
-          );
+          const exitData = errorInfo
+            ? { type: "error", errorMessage: errorInfo.errorMessage, stopReason: errorInfo.stopReason }
+            : { type: "done" };
+          writeFileSync(`${sessionFile}.exit`, JSON.stringify(exitData));
         } catch {
-          // Best effort — even without the sidecar, watcher's session-file
-          // fallback can still recover the errorMessage.
+          // Best effort
         }
       }
 
