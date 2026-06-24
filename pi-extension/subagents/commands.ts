@@ -5,7 +5,7 @@
  * Ported from crew-of-pi config.command.ts.
  */
 
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { pickAgent, pickField, pickScope, editModel, editExtensions, editSkills } from "./wizard.ts";
 import { readSubagentConfig, writeSubagentConfig, getConfigPath, type SubagentConfig } from "./config.ts";
 import { discoverAgentNames } from "./discovery.ts";

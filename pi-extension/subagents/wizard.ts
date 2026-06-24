@@ -3,7 +3,7 @@
  * Ported from crew-of-pi config slice. Uses ctx.ui API.
  */
 
-import type { ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { discoverAgentNames, discoverExtensions, discoverSkills, formatModelLabel, validateModel, validatePath, type ExtensionOption, type SkillOption } from "./discovery.ts";
 
 // ─── Agent Picker ───────────────────────────────────────────────
