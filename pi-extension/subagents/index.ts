@@ -52,6 +52,7 @@ import {
   type SubagentActivityState,
 } from "./activity.ts";
 import { getAgentOverride } from "./config.ts";
+import { registerSubagentConfigCommand } from "./commands.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -2126,4 +2127,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       );
     },
   });
+
+  // /subagent-config command — edit per-agent config
+  registerSubagentConfigCommand(pi);
 }

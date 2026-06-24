@@ -1,14 +1,14 @@
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
-interface AgentResourceOverride {
+export interface AgentResourceOverride {
   extensions?: string[];
   skills?: string[];
   model?: string;
 }
 
-interface SubagentConfig {
+export interface SubagentConfig {
   agents: Record<string, AgentResourceOverride>;
 }
 
@@ -23,15 +23,42 @@ function loadJsonConfig(filePath: string): SubagentConfig | null {
 }
 
 /**
+ * Get config file path for a given scope.
+ */
+export function getConfigPath(scope: "project" | "global", cwd: string): string {
+  if (scope === "global") {
+    return join(homedir(), ".pi", "agent", "subagent-config.json");
+  }
+  return join(cwd, ".pi", "subagent-config.json");
+}
+
+/**
+ * Read config for a specific scope only.
+ */
+export function readSubagentConfig(scope: "project" | "global", cwd: string): SubagentConfig | null {
+  return loadJsonConfig(getConfigPath(scope, cwd));
+}
+
+/**
+ * Write config to a specific scope.
+ */
+export function writeSubagentConfig(config: SubagentConfig, scope: "project" | "global", cwd: string): boolean {
+  const filePath = getConfigPath(scope, cwd);
+  try {
+    writeFileSync(filePath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Load subagent config from global + project locations.
  * Project overrides global.
  */
 function loadSubagentConfig(cwd: string): SubagentConfig | null {
-  const globalPath = join(homedir(), ".pi", "agent", "subagent-config.json");
-  const projectPath = join(cwd, ".pi", "subagent-config.json");
-
-  const global = loadJsonConfig(globalPath);
-  const project = loadJsonConfig(projectPath);
+  const global = readSubagentConfig("global", cwd);
+  const project = readSubagentConfig("project", cwd);
 
   if (!global && !project) return null;
 
