@@ -478,7 +478,14 @@ function loadAgentDefaults(agentName: string): AgentDefaults | null {
   for (const p of paths) {
     if (!existsSync(p)) continue;
     const parsed = parseAgentDefinition(readFileSync(p, "utf8"), agentName);
-    if (parsed) return parsed;
+    if (parsed) {
+      // Apply JSON config overrides (project > global > frontmatter)
+      const override = getAgentOverride(process.cwd(), agentName);
+      if (override?.extensions) parsed.extensions = override.extensions.join(",");
+      if (override?.skills) parsed.skills = override.skills.join(",");
+      if (override?.model) parsed.model = override.model;
+      return parsed;
+    }
   }
 
   return null;
