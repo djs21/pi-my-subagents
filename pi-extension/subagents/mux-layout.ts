@@ -29,9 +29,13 @@ export function resetTilingLayout(): void {
 /**
  * Create a tiled surface for a subagent.
  *
+ * DWM tile: first split right, subsequent split down from previous pane.
+ * If the tracked pane was closed (pane_not_found), resets and retries
+ * with a right split from the main pane.
+ *
  * @param name Display name for the pane
  * @param backend Current mux backend
- * @param splitFn Function to create a split (takes name, direction, fromSurface)
+ * @param splitFn Function to create a split
  * @returns Surface identifier for the new pane
  */
 export function createTileSurface(
@@ -48,6 +52,15 @@ export function createTileSurface(
   }
 
   // Subsequent subagents: down split from the previous subagent pane
-  lastSubagentSurface = splitFn(name, "down", lastSubagentSurface);
-  return lastSubagentSurface;
+  // If the previous pane was already closed (e.g. subagent completed),
+  // fall back to a right split from the main pane.
+  try {
+    lastSubagentSurface = splitFn(name, "down", lastSubagentSurface);
+    return lastSubagentSurface;
+  } catch {
+    // Pane was closed — reset layout and retry with right split
+    lastSubagentSurface = null;
+    lastSubagentSurface = splitFn(name, "right", undefined);
+    return lastSubagentSurface;
+  }
 }
