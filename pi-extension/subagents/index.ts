@@ -611,6 +611,7 @@ interface RunningSubagent {
    * long-running agents where the user drives the conversation in the
    * subagent's pane (e.g. planner).
    */
+  model?: string;
   interactive: boolean;
 }
 
@@ -705,7 +706,8 @@ function renderSubagentWidgetLines(agents: RunningSubagent[], width: number): st
   for (const agent of agents) {
     const elapsed = formatElapsedMMSS(agent.startTime);
     const agentTag = agent.agent ? ` (${agent.agent})` : "";
-    const left = ` ${elapsed}  ${agent.name}${agentTag} `;
+    const modelTag = agent.model ? ` [${agent.model}]` : "";
+    const left = ` ${elapsed}  ${agent.name}${agentTag}${modelTag} `;
     const snapshot = classifyStatus(agent.statusState, Date.now());
     const right = statusConfig.enabled
       ? formatWidgetRightLabel(snapshot)
@@ -1221,6 +1223,7 @@ async function launchSubagent(
     sessionFile: subagentSessionFile,
     launchScriptFile,
     activityFile,
+    model: effectiveModel,
     interactive: effectiveInteractive,
     statusState: createStatusState({
       source: "pi",
