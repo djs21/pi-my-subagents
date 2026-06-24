@@ -211,3 +211,11 @@ export function startStatusRefresh(
 
   (globalThis as any)[STATUS_INTERVAL_KEY] = statusInterval;
 }
+
+export function cleanupStatusTimer() {
+  if (statusInterval) {
+    clearInterval(statusInterval);
+    statusInterval = null;
+    (globalThis as any)[STATUS_INTERVAL_KEY] = null;
+  }
+}

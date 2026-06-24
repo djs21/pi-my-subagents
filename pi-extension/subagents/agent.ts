@@ -314,3 +314,8 @@ export function activityLabel(activity: SubagentActivityState): string | undefin
   if (activity.activeScope === "streaming") return "streaming";
   return activity.activeScope;
 }
+
+export function resolveResumeLaunchBehavior(params: { autoExit?: boolean }): { autoExit: boolean; interactive: boolean } {
+  const autoExit = params.autoExit ?? true;
+  return { autoExit, interactive: !autoExit };
+}

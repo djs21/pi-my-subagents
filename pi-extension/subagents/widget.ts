@@ -1,14 +1,34 @@
 /**
- * Subagent widget rendering — pure display helpers.
- * No module-level state; pass statusConfig.enabled explicitly.
+ * Subagent widget rendering and refresh lifecycle.
+ *
+ * Pure rendering functions plus module-level interval management.
+ * `updateWidget()` and `startWidgetRefresh()` are the primary entry points;
+ * they take explicit state (latestCtx, runningSubagents, statusEnabled) instead
+ * of closing over module globals.
  */
 
 import { Box, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { RunningSubagent, SubagentResult } from "./types.ts";
 import { formatElapsed } from "./agent.ts";
 import type { StatusSnapshot, SubagentStatusState } from "./status.ts";
 import { classifyStatus } from "./status.ts";
 import type { SubagentActivityState } from "./activity.ts";
+
+// ─── Module-level interval state ────────────────────────────────
+
+const WIDGET_INTERVAL_KEY = Symbol.for("pi-subagents/widget-interval");
+
+let widgetInterval: ReturnType<typeof setInterval> | null = null;
+
+// Clear previous interval on module reload (survive /reload)
+{
+  const prev = (globalThis as any)[WIDGET_INTERVAL_KEY] as ReturnType<typeof setInterval> | undefined;
+  if (prev) {
+    clearInterval(prev);
+    (globalThis as any)[WIDGET_INTERVAL_KEY] = null;
+  }
+}
 
 // ─── ANSI helpers ───────────────────────────────────────────────
 
@@ -113,6 +133,69 @@ export function renderSubagentWidgetLines(
 
   lines.push(borderBottom(width));
   return lines;
+}
+
+// ─── Widget lifecycle ───────────────────────────────────────────
+
+/**
+ * Update the TUI widget with the current subagent state.
+ * Explicitly pass state instead of closing over module globals.
+ */
+export function updateWidget(
+  latestCtx: ExtensionContext | null,
+  runningSubagents: Map<string, RunningSubagent>,
+  statusEnabled: boolean,
+) {
+  if (!latestCtx?.hasUI) return;
+
+  if (runningSubagents.size === 0) {
+    latestCtx.ui.setWidget("subagent-status", undefined);
+    if (widgetInterval) {
+      clearInterval(widgetInterval);
+      widgetInterval = null;
+      (globalThis as any)[WIDGET_INTERVAL_KEY] = null;
+    }
+    return;
+  }
+
+  latestCtx.ui.setWidget(
+    "subagent-status",
+    (_tui: any, _theme: any) => {
+      return {
+        invalidate() {},
+        render(width: number) {
+          return renderSubagentWidgetLines(Array.from(runningSubagents.values()), width, statusEnabled);
+        },
+      };
+    },
+    { placement: "aboveEditor" },
+  );
+}
+
+/**
+ * Start a 1-second interval that refreshes the widget.
+ * No-op if already running.
+ */
+export function startWidgetRefresh(
+  latestCtx: ExtensionContext | null,
+  runningSubagents: Map<string, RunningSubagent>,
+  statusEnabled: boolean,
+) {
+  if (widgetInterval) return;
+  updateWidget(latestCtx, runningSubagents, statusEnabled); // immediate first render
+  widgetInterval = setInterval(() => {
+    updateWidget(latestCtx, runningSubagents, statusEnabled);
+  }, 1000);
+  (globalThis as any)[WIDGET_INTERVAL_KEY] = widgetInterval;
+}
+
+/** Cleanup the widget interval timer (e.g. on session shutdown). */
+export function cleanupWidgetTimer() {
+  if (widgetInterval) {
+    clearInterval(widgetInterval);
+    widgetInterval = null;
+    (globalThis as any)[WIDGET_INTERVAL_KEY] = null;
+  }
 }
 
 // ─── Result presentation ────────────────────────────────────────

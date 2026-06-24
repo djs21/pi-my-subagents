@@ -68,17 +68,22 @@ import {
   getArtifactDir, buildSubagentToolAllowlist, buildPiPromptArgs,
   activityLabel, getBundledAgentsDir, getAgentConfigDir,
   resolveAgentExtensions, buildAgentResourceArgs,
+  resolveResumeLaunchBehavior,
 } from "./agent.ts";
 import {
   borderLine,
   renderSubagentWidgetLines,
   resolveResultPresentation,
+  updateWidget as widgetUpdateWidget,
+  startWidgetRefresh as widgetStartWidgetRefresh,
+  cleanupWidgetTimer,
 } from "./widget.ts";
 import {
   handleSubagentInterrupt as interruptHandleSubagentInterrupt,
   resolveInterruptTarget as interruptResolveInterruptTarget,
   requestSubagentInterrupt,
   startStatusRefresh,
+  cleanupStatusTimer,
 } from "./interrupt.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
@@ -87,15 +92,9 @@ const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
 // Survive /reload: clear timers and abort poll loops from the previous module load.
 // /reload re-imports this file, giving fresh module-level state, but closures from
 // the old module keep running. See https://github.com/HazAT/pi-interactive-subagents/issues/5
-const WIDGET_INTERVAL_KEY = Symbol.for("pi-subagents/widget-interval");
 const POLL_ABORT_KEY = Symbol.for("pi-subagents/poll-abort-controller");
 
 {
-  const prevInterval = (globalThis as any)[WIDGET_INTERVAL_KEY];
-  if (prevInterval) {
-    clearInterval(prevInterval);
-    (globalThis as any)[WIDGET_INTERVAL_KEY] = null;
-  }
   const prevAbort = (globalThis as any)[POLL_ABORT_KEY] as AbortController | undefined;
   if (prevAbort) prevAbort.abort();
   (globalThis as any)[POLL_ABORT_KEY] = new AbortController();
@@ -107,44 +106,15 @@ const statusConfig = loadStatusConfig();
 /** Latest ExtensionContext from session_start, used for widget updates. */
 let latestCtx: ExtensionContext | null = null;
 
-/** Interval timer for widget re-renders. */
-let widgetInterval: ReturnType<typeof setInterval> | null = null;
+
+// ─── Thin wrappers that close over module state ────────────────
 
 function updateWidget() {
-  if (!latestCtx?.hasUI) return;
-
-  if (runningSubagents.size === 0) {
-    latestCtx.ui.setWidget("subagent-status", undefined);
-    if (widgetInterval) {
-      clearInterval(widgetInterval);
-      widgetInterval = null;
-      (globalThis as any)[WIDGET_INTERVAL_KEY] = null;
-    }
-    return;
-  }
-
-  latestCtx.ui.setWidget(
-    "subagent-status",
-    (_tui: any, _theme: any) => {
-      return {
-        invalidate() {},
-        render(width: number) {
-          return renderSubagentWidgetLines(Array.from(runningSubagents.values()), width, statusConfig.enabled);
-        },
-      };
-    },
-    { placement: "aboveEditor" },
-  );
+  widgetUpdateWidget(latestCtx, runningSubagents, statusConfig.enabled);
 }
 
-
-
-
-
-
-function resolveResumeLaunchBehavior(params: { autoExit?: boolean }): { autoExit: boolean; interactive: boolean } {
-  const autoExit = params.autoExit ?? true;
-  return { autoExit, interactive: !autoExit };
+function startWidgetRefresh() {
+  widgetStartWidgetRefresh(latestCtx, runningSubagents, statusConfig.enabled);
 }
 
 // ─── Backward-compatible wrappers ──────────────────────────────
@@ -190,15 +160,6 @@ export const __test__ = {
   requestSubagentInterrupt,
 };
 
-function startWidgetRefresh() {
-  if (widgetInterval) return;
-  updateWidget(); // immediate first render
-  widgetInterval = setInterval(() => {
-    updateWidget();
-  }, 1000);
-  (globalThis as any)[WIDGET_INTERVAL_KEY] = widgetInterval;
-}
-
 /**
  * Launch a subagent: creates the multiplexer pane, builds the command, and
  * sends it. Returns a RunningSubagent — does NOT poll.
@@ -213,16 +174,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
   // Clean up on session shutdown
   pi.on("session_shutdown", (_event, _ctx) => {
-    if (widgetInterval) {
-      clearInterval(widgetInterval);
-      widgetInterval = null;
-      (globalThis as any)[WIDGET_INTERVAL_KEY] = null;
-    }
-    if (statusInterval) {
-      clearInterval(statusInterval);
-      statusInterval = null;
-      (globalThis as any)[STATUS_INTERVAL_KEY] = null;
-    }
+    cleanupWidgetTimer();
+    cleanupStatusTimer();
     const moduleAbort = (globalThis as any)[POLL_ABORT_KEY] as AbortController | undefined;
     if (moduleAbort) moduleAbort.abort();
     for (const [_id, agent] of runningSubagents) {
