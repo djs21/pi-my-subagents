@@ -112,28 +112,23 @@ function sleepSync(milliseconds: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
+import {
+  createTileSurface,
+  resetTilingLayout,
+} from "./mux-layout.ts";
+
 /**
  * Create a new terminal surface for a subagent.
  *
- * For herdr: splits the current pane to the right.
- * For tmux: falls back to split behavior targeting the parent pi's pane.
+ * DWM tile layout: first subagent splits the main pane to the right,
+ * subsequent subagents split the previous subagent pane downward.
+ * Result: main agent on left, subagents stacked vertically on right.
  *
  * Returns an identifier (herdr pane_id or tmux pane_id like `%12`).
  */
 export function createSurface(name: string): string {
   const backend = getMuxBackend();
-  if (backend === "herdr") {
-    const currentPane = process.env.HERDR_PANE_ID;
-    if (!currentPane) throw new Error("HERDR_PANE_ID not set");
-    const result = execFileSync("herdr", ["pane", "split", currentPane, "--direction", "right", "--no-focus"], { encoding: "utf8" });
-    const parsed = JSON.parse(result);
-    const paneId = parsed?.result?.pane?.pane_id;
-    if (!paneId) throw new Error("Failed to parse herdr pane id");
-    return paneId;
-  }
-  // tmux
-  const fromSurface = process.env.TMUX_PANE;
-  return createSurfaceSplit(name, "right", fromSurface);
+  return createTileSurface(name, backend, createSurfaceSplit);
 }
 
 /**
