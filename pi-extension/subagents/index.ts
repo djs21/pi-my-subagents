@@ -10,6 +10,7 @@ import {
   writeFileSync,
   existsSync,
   mkdirSync,
+  statSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import {
@@ -50,6 +51,7 @@ import {
   type ActivityReadResult,
   type SubagentActivityState,
 } from "./activity.ts";
+import { getAgentOverride } from "./config.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -128,6 +130,7 @@ interface AgentDefaults {
   skills?: string;
   thinking?: string;
   denyTools?: string;
+  extensions?: string;
   spawning?: boolean;
   autoExit?: boolean;
   interactive?: boolean;
@@ -194,6 +197,123 @@ function getBundledAgentsDir(): string {
   return join(SUBAGENTS_DIR, "../../agents");
 }
 
+/**
+ * Resolve extension paths from comma-separated raw string.
+ * Supports: npm:/git:, absolute, ~, relative paths.
+ * Directory paths are scanned for .ts files and star-slash-index.ts.
+ */
+function resolveAgentExtensions(raw: string | undefined, agentDir: string): string[] {
+  if (!raw) return [];
+  const results: string[] = [];
+  for (const ref of raw.split(",").map((s) => s.trim()).filter(Boolean)) {
+    if (ref.startsWith("npm:") || ref.startsWith("git:")) {
+      results.push(ref);
+      continue;
+    }
+    let resolved: string;
+    if (ref.startsWith("/")) {
+      resolved = ref;
+    } else if (ref.startsWith("~")) {
+      resolved = join(homedir(), ref.slice(1));
+    } else {
+      resolved = join(agentDir, ref);
+    }
+    try {
+      const stat = statSync(resolved);
+      if (stat.isDirectory()) {
+        results.push(...scanExtensionDir(resolved));
+        continue;
+      }
+    } catch {}
+    results.push(resolved);
+  }
+  return results;
+}
+
+/** Scan directory for .ts files and star-slash-index.ts extension entries */
+function scanExtensionDir(dir: string): string[] {
+  const results: string[] = [];
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".ts")) {
+        results.push(join(dir, entry.name));
+      }
+      if (entry.isDirectory()) {
+        const indexPath = join(dir, entry.name, "index.ts");
+        if (existsSync(indexPath)) results.push(indexPath);
+      }
+    }
+  } catch {}
+  return results;
+}
+
+/** Scan directory for skill subdirectories containing SKILL.md */
+function scanSkillDir(dir: string): string[] {
+  const results: string[] = [];
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (existsSync(join(dir, entry.name, "SKILL.md"))) {
+        results.push(join(dir, entry.name));
+      }
+    }
+  } catch {}
+  return results;
+}
+
+/**
+ * Build CLI resource args (--no-extensions/-e, --no-skills/--skill)
+ * for per-agent exclusive extensions & skills.
+ * Returns empty array if agent has no explicit resource config.
+ */
+function buildAgentResourceArgs(agentDefs: AgentDefaults | null, agentDir: string): string[] {
+  const args: string[] = [];
+  if (!agentDefs) return args;
+
+  // Extensions: --no-extensions disables discovery, -e adds specific ones
+  const rawExts = agentDefs.extensions;
+  if (rawExts !== undefined) {
+    args.push("--no-extensions");
+    for (const ext of resolveAgentExtensions(rawExts, agentDir)) {
+      args.push("-e", shellEscape(ext));
+    }
+  }
+
+  // Skills: --no-skills disables discovery, --skill adds specific ones
+  const rawSkills = agentDefs.skills;
+  if (rawSkills !== undefined) {
+    args.push("--no-skills");
+    for (const skillPath of rawSkills.split(",").map((s) => s.trim()).filter(Boolean)) {
+      // If it looks like a path (contains /, ~, or starts with .), resolve it relative to agent dir
+      if (skillPath.includes("/") || skillPath.startsWith("~") || skillPath.startsWith(".")) {
+        let resolved: string;
+        if (skillPath.startsWith("/")) {
+          resolved = skillPath;
+        } else if (skillPath.startsWith("~")) {
+          resolved = join(homedir(), skillPath.slice(1));
+        } else {
+          resolved = join(agentDir, skillPath);
+        }
+        try {
+          const stat = statSync(resolved);
+          if (stat.isDirectory()) {
+            for (const s of scanSkillDir(resolved)) {
+              args.push("--skill", shellEscape(s));
+            }
+            continue;
+          }
+        } catch {}
+        args.push("--skill", shellEscape(resolved));
+      } else {
+        // Skill name (e.g., "tavily-search") — pass through as-is
+        args.push("--skill", shellEscape(skillPath));
+      }
+    }
+  }
+
+  return args;
+}
+
 function getFrontmatterValue(frontmatter: string, key: string): string | undefined {
   const match = frontmatter.match(new RegExp(`^${key}:\\s*(.+)$`, "m"));
   return match ? match[1].trim() : undefined;
@@ -230,6 +350,7 @@ function parseAgentDefinition(content: string, fallbackName: string): AgentDefin
           ? "append"
           : undefined,
     skills: getFrontmatterValue(frontmatter, "skill") ?? getFrontmatterValue(frontmatter, "skills"),
+    extensions: getFrontmatterValue(frontmatter, "extensions"),
     thinking: getFrontmatterValue(frontmatter, "thinking"),
     denyTools: getFrontmatterValue(frontmatter, "deny-tools"),
     spawning: parseOptionalBoolean(getFrontmatterValue(frontmatter, "spawning")),
@@ -854,6 +975,8 @@ export const __test__ = {
   renderSubagentWidgetLines,
   loadAgentDefaults,
   discoverAgentDefinitions,
+  resolveAgentExtensions,
+  buildAgentResourceArgs,
   resolveEffectiveSessionMode,
   resolveLaunchBehavior,
   resolveEffectiveInteractive,

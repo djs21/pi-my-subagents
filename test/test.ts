@@ -1,8 +1,8 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { visibleWidth } from "@mariozechner/pi-tui";
 import * as subagentsModule from "../pi-extension/subagents/index.ts";
@@ -2061,6 +2061,143 @@ describe("mux.ts", () => {
       assert.ok(escaped.endsWith("'"));
       // Inside single quotes, everything is literal
       assert.ok(escaped.includes("$world"));
+    });
+  });
+});
+
+describe("agent extensions & skills", () => {
+  const testApi = (subagentsModule as any).__test__;
+  const { resolveAgentExtensions, buildAgentResourceArgs } = testApi;
+
+  describe("resolveAgentExtensions", () => {
+    it("returns empty array for undefined", () => {
+      assert.deepEqual(resolveAgentExtensions(undefined, "/tmp"), []);
+    });
+
+    it("returns empty array for empty string", () => {
+      assert.deepEqual(resolveAgentExtensions("", "/tmp"), []);
+    });
+
+    it("passes through npm: and git: references", () => {
+      const result = resolveAgentExtensions(
+        "npm:@scope/package,git:github.com/user/repo",
+        "/tmp",
+      );
+      assert.deepEqual(result, [
+        "npm:@scope/package",
+        "git:github.com/user/repo",
+      ]);
+    });
+
+    it("resolves absolute paths", () => {
+      const result = resolveAgentExtensions("/home/user/ext.ts", "/tmp");
+      assert.deepEqual(result, ["/home/user/ext.ts"]);
+    });
+
+    it("resolves home-directory paths", () => {
+      const result = resolveAgentExtensions("~/ext/my-tool.ts", "/tmp");
+      // Should expand ~ to homedir
+      assert.ok(result[0].startsWith(homedir()));
+      assert.ok(result[0].endsWith("ext/my-tool.ts"));
+    });
+
+    it("resolves relative paths against agent dir", () => {
+      const result = resolveAgentExtensions("/agents/planner/local/ext.ts", "/tmp");
+      assert.equal(result[0], "/agents/planner/local/ext.ts");
+    });
+
+    it("scans directories for .ts files and */index.ts", () => {
+      const os = { tmpdir };
+      const fs = { mkdtempSync, writeFileSync, mkdirSync, rmSync };
+      const path = { join };
+      const tmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "ext-test-"),
+      );
+      try {
+        // Create files in the temp directory
+        fs.writeFileSync(
+          path.join(tmpDir, "tool-a.ts"),
+          "export default {}",
+        );
+        fs.writeFileSync(
+          path.join(tmpDir, "tool-b.ts"),
+          "export default {}",
+        );
+        const subDir = path.join(tmpDir, "sub-ext");
+        fs.mkdirSync(subDir);
+        fs.writeFileSync(
+          path.join(subDir, "index.ts"),
+          "export default {}",
+        );
+
+        const result = resolveAgentExtensions(tmpDir, "/tmp");
+        assert.equal(result.length, 3);
+        assert.ok(result.some((r: string) => r.endsWith("tool-a.ts")));
+        assert.ok(result.some((r: string) => r.endsWith("tool-b.ts")));
+        assert.ok(result.some((r: string) => r.endsWith("sub-ext/index.ts")));
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("handles missing paths gracefully", () => {
+      const result = resolveAgentExtensions("/nonexistent/path.ts", "/tmp");
+      assert.deepEqual(result, ["/nonexistent/path.ts"]);
+    });
+  });
+
+  describe("buildAgentResourceArgs", () => {
+    it("returns empty array for null agentDefs", () => {
+      assert.deepEqual(buildAgentResourceArgs(null, "/tmp"), []);
+    });
+
+    it("returns empty array for agentDefs without extensions/skills", () => {
+      assert.deepEqual(
+        buildAgentResourceArgs({ model: "test" }, "/tmp"),
+        [],
+      );
+    });
+
+    it("adds --no-extensions and -e for explicit extensions", () => {
+      const result = buildAgentResourceArgs(
+        { extensions: "/home/user/ext.ts" },
+        "/tmp",
+      );
+      assert.ok(result.includes("--no-extensions"));
+      assert.ok(result.includes("-e"));
+    });
+
+    it("adds --no-skills and --skill for explicit skills", () => {
+      const result = buildAgentResourceArgs(
+        { skills: "tavily-search" },
+        "/tmp",
+      );
+      assert.ok(result.includes("--no-skills"));
+      assert.ok(result.includes("--skill"));
+    });
+
+    it("passes skill names through as-is", () => {
+      const result = buildAgentResourceArgs(
+        { skills: "tavily-search,my-skill" },
+        "/tmp",
+      );
+      const skillIdx = result.indexOf("--skill");
+      assert.ok(skillIdx >= 0);
+      assert.equal(result[skillIdx + 1], "'tavily-search'");
+    });
+
+    it("handles both extensions and skills together", () => {
+      const result = buildAgentResourceArgs(
+        {
+          extensions: "git:github.com/user/repo",
+          skills: "my-skill",
+        },
+        "/tmp",
+      );
+      assert.ok(result.includes("--no-extensions"));
+      assert.ok(result.includes("--no-skills"));
+      assert.ok(result.includes("-e"));
+      assert.ok(result.includes("--skill"));
     });
   });
 });
