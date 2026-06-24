@@ -15,7 +15,8 @@ import { discoverAgentNames } from "./discovery.ts";
 async function handleSubagentConfigCommand(args: string, ctx: ExtensionCommandContext): Promise<void> {
   const trimmed = args.trim();
 
-  if (!trimmed || trimmed === "help" || trimmed === "--help" || trimmed === "-h") {
+  // Show help only when explicitly asked, otherwise start interactive wizard
+  if (trimmed === "help" || trimmed === "--help" || trimmed === "-h") {
     ctx.ui.notify(showHelp(), "info");
     return;
   }
