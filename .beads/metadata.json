@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "pi_my_subagents",
+  "project_id": "0f162d6b-7dc4-4e76-962e-cd80c69bb671"
+}
