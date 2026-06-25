@@ -32,7 +32,7 @@ export function equalizeStack(
   getHeightFn: (pane: string) => number,
 ): void {
   if (panes.length < 2) return;
-  const totalHeight = getHeightFn(panes[0]);
+  const totalHeight = panes.reduce((sum, p) => sum + getHeightFn(p), 0);
   const target = Math.floor(totalHeight / panes.length);
   resizeFn(panes, target);
 }
