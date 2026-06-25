@@ -158,3 +158,27 @@ export function subagentPingRenderer(message: any, options: any, theme: Theme) {
     },
   };
 }
+
+// ─── subagent_stalled ──────────────────────────────────────────
+
+export function subagentStalledRenderer(message: any, _options: any, theme: Theme) {
+  const details = message.details as any;
+  if (!details) return undefined;
+
+  return {
+    render(_width: number): string[] {
+      const name = details.name ?? "subagent";
+      const agentTag = details.agent ? theme.fg("dim", ` (${details.agent})`) : "";
+      const elapsed = details.elapsed != null
+        ? details.elapsed >= 60
+          ? `${Math.floor(details.elapsed / 60)}m ${details.elapsed % 60}s`
+          : `${details.elapsed}s`
+        : "?";
+      const statusLabel = theme.fg("error", "stalled (idle)");
+      const text =
+        `${theme.fg("error", "!")} ${theme.fg("toolTitle", theme.bold(name))}${agentTag} ${theme.fg("dim", "—")} ${statusLabel} ${theme.fg("dim", `(${elapsed})`)}`;
+      const content = typeof message.content === "string" ? message.content : "";
+      return ["", text, content ? theme.fg("dim", content) : ""];
+    },
+  };
+}

@@ -180,6 +180,8 @@ export function startStatusRefresh(
     const now = Date.now();
     let shouldRefreshWidget = false;
 
+    const stalledAgents: Array<{ id: string; name: string; task: string; agent?: string; sessionFile: string; elapsed: number }> = [];
+
     for (const running of runningSubagents.values()) {
       observeRunningSubagent(running, now);
       const { nextState, snapshot, transition } = advanceStatusState(running.statusState, now);
@@ -190,11 +192,24 @@ export function startStatusRefresh(
 
       if (transition && !running.interactive) {
         transitionLines.push(formatTransitionLine(running.name, snapshot, transition));
+
+        // Dedicated stall message — one per subagent that transitions to stalled
+        if (transition === "stalled") {
+          stalledAgents.push({
+            id: running.id,
+            name: running.name,
+            task: running.task,
+            agent: running.agent,
+            sessionFile: running.sessionFile,
+            elapsed: Math.floor((now - running.startTime) / 1000),
+          });
+        }
       }
     }
 
     if (shouldRefreshWidget) onUpdateWidget();
 
+    // Aggregate status transition lines (existing behavior)
     if (transitionLines.length > 0) {
       const capped = capStatusLines(transitionLines, statusConfig.lineLimit);
       pi.sendMessage(
@@ -203,6 +218,22 @@ export function startStatusRefresh(
           content: formatStatusAggregate(transitionLines, statusConfig.lineLimit),
           display: true,
           details: { lines: capped.visibleLines, overflow: capped.overflow },
+        },
+        { triggerTurn: true, deliverAs: "steer" },
+      );
+    }
+
+    // Dedicated stall notification per subagent (for orchestrator/main agent)
+    for (const agent of stalledAgents) {
+      const elapsedLabel = agent.elapsed >= 60
+        ? `${Math.floor(agent.elapsed / 60)}m ${agent.elapsed % 60}s`
+        : `${agent.elapsed}s`;
+      pi.sendMessage(
+        {
+          customType: "subagent_stalled",
+          content: `Subagent "${agent.name}" stalled (idle) after ${elapsedLabel}. Task: ${agent.task}`,
+          display: true,
+          details: agent,
         },
         { triggerTurn: true, deliverAs: "steer" },
       );

@@ -87,6 +87,7 @@ import {
   subagentResultRenderer,
   subagentStatusRenderer,
   subagentPingRenderer,
+  subagentStalledRenderer,
 } from "./renderers.ts";
 import {
   createSubagentTool,
@@ -331,6 +332,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
   pi.registerMessageRenderer("subagent_result", subagentResultRenderer);
   pi.registerMessageRenderer("subagent_status", subagentStatusRenderer);
   pi.registerMessageRenderer("subagent_ping", subagentPingRenderer);
+  pi.registerMessageRenderer("subagent_stalled", subagentStalledRenderer);
 
   // /plan command — start the full planning workflow
   pi.registerCommand("plan", {
