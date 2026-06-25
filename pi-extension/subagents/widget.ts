@@ -120,7 +120,7 @@ export function renderSubagentWidgetLines(
 
   for (const agent of agents) {
     const elapsed = formatElapsedMMSS(agent.startTime);
-    const agentTag = agent.agent ? ` (${agent.agent})` : "";
+    const agentTag = "";
     const modelTag = agent.model ? ` [${agent.model}]` : "";
     const left = ` ${elapsed}  ${agent.name}${agentTag}${modelTag} `;
     const snapshot = classifyStatus(agent.statusState, Date.now());
