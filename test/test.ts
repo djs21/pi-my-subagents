@@ -2240,3 +2240,42 @@ describe("agent extensions & skills", () => {
     });
   });
 });
+
+// ── Equalize Stack TDD ─────────────────────────────────────────────
+
+import { resetTilingLayout, createTileSurface } from "../pi-extension/subagents/mux-layout.ts";
+
+describe("mux-layout.ts equalize stack", () => {
+  let splitCalls: Array<{ name: string; direction: string; from?: string }> = [];
+  let resizeCalls: Array<{ panes: string[]; targetHeight: number }> = [];
+  let heightReturns: Record<string, number> = {};
+
+  function mockSplitFn(name: string, direction: "left" | "right" | "up" | "down", fromSurface?: string): string {
+    splitCalls.push({ name, direction, from: fromSurface });
+    return `pane-${name}`;
+  }
+
+  function mockResizeFn(panes: string[], targetHeight: number): void {
+    resizeCalls.push({ panes, targetHeight });
+  }
+
+  function mockGetHeightFn(pane: string): number {
+    return heightReturns[pane] ?? 0;
+  }
+
+  beforeEach(() => {
+    splitCalls = [];
+    resizeCalls = [];
+    heightReturns = {};
+    resetTilingLayout();
+  });
+
+  // Cycle 1: 1 subagent → split right, no equalize
+  it("1 subagent → split right, no equalize", () => {
+    const result = createTileSurface("sub-a", "tmux", mockSplitFn, mockResizeFn, mockGetHeightFn);
+    assert.equal(result, "pane-sub-a");
+    assert.equal(splitCalls.length, 1);
+    assert.equal(splitCalls[0].direction, "right");
+    assert.equal(resizeCalls.length, 0);
+  });
+});

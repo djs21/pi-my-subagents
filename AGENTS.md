@@ -79,9 +79,48 @@ Default section order:
 
 When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
 
+### Master/Orc Command Structure
+
+- **Master**: the human user (djs). Gives orders, assigns tasks, approves plans.
+- **Orc**: the AI assistant/agent. Executes under Master's command. Does NOT act independently — only carries out assigned work.
+- Orc is an **orchestrator**, not a solo implementer. Orc delegates work to sub-agents (workers, scouts, planners, reviewers).
+- Orc does NOT edit files directly — all code/documentation changes go through sub-agents.
+
+### OODA Loop Operating Principle
+
+Before every action, Orc must cycle through:
+1. **Observe** — gather current state, read relevant files, check context
+2. **Orient** — analyze situation, identify options, reference past decisions
+3. **Decide** — choose approach, design solution, get Master approval when needed
+4. **Act** — delegate to sub-agents for execution
+
 ## Child DOX Index
 
-This project is not yet indexed. Before continuing you must scan the project, build the DOX tree and replace this message with the actual index. Go deep and scan files recursively to properly evaluate complexity and create nested DOX files where needed.
+| Path | Purpose |
+|------|---------|
+| `pi-extension/subagents/AGENTS.md` | Core extension — mux backend, lifecycle, layout, status, tools, widget, config |
+| `agents/AGENTS.md` | Bundled agent definitions (planner, scout, worker, reviewer, visual-tester) |
+
+### Contents owned by root
+
+- `docs/agents/*.md` — skill configuration docs (issue tracker, triage labels, domain)
+- `test/` — test files (covered by `pi-extension/subagents/` module)
+- `package.json` — project metadata
+- `README.md` — project overview
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in a local beads database (`.beads/`), managed via the `bd` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo — `CONTEXT.md` + `docs/adr/` at the root (not yet created). See `docs/agents/domain.md`.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
 ## Beads Issue Tracker

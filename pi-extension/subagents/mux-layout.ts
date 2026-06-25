@@ -19,11 +19,30 @@ import type { MuxBackend } from "./mux.ts";
 /** Track the most recently created subagent pane for DWM tiling. */
 let lastSubagentSurface: string | null = null;
 
+/** Stack of subagent pane IDs in the right column for equalize. */
+let stackPanes: string[] = [];
+
+/**
+ * Equalize heights of all panes in the stack so each gets 1/N of total height.
+ * No-op when fewer than 2 panes.
+ */
+export function equalizeStack(
+  panes: string[],
+  resizeFn: (panes: string[], targetHeight: number) => void,
+  getHeightFn: (pane: string) => number,
+): void {
+  if (panes.length < 2) return;
+  const totalHeight = getHeightFn(panes[0]);
+  const target = Math.floor(totalHeight / panes.length);
+  resizeFn(panes, target);
+}
+
 /**
  * Reset the layout tracking. Call when starting fresh (e.g., new session).
  */
 export function resetTilingLayout(): void {
   lastSubagentSurface = null;
+  stackPanes = [];
 }
 
 /**
@@ -42,12 +61,15 @@ export function createTileSurface(
   name: string,
   backend: MuxBackend | null,
   splitFn: (name: string, direction: "left" | "right" | "up" | "down", fromSurface?: string) => string,
+  resizeFn?: (panes: string[], targetHeight: number) => void,
+  getHeightFn?: (pane: string) => number,
 ): string {
   if (!backend) throw new Error("No mux backend available");
 
   if (!lastSubagentSurface) {
     // First subagent: right split from current pane
     lastSubagentSurface = splitFn(name, "right", undefined);
+    stackPanes.push(lastSubagentSurface);
     return lastSubagentSurface;
   }
 
@@ -56,11 +78,17 @@ export function createTileSurface(
   // fall back to a right split from the main pane.
   try {
     lastSubagentSurface = splitFn(name, "down", lastSubagentSurface);
+    stackPanes.push(lastSubagentSurface);
+    if (resizeFn && getHeightFn) {
+      equalizeStack(stackPanes, resizeFn, getHeightFn);
+    }
     return lastSubagentSurface;
   } catch {
     // Pane was closed — reset layout and retry with right split
     lastSubagentSurface = null;
+    stackPanes = [];
     lastSubagentSurface = splitFn(name, "right", undefined);
+    stackPanes.push(lastSubagentSurface);
     return lastSubagentSurface;
   }
 }

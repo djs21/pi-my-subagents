@@ -26,3 +26,6 @@ test/coverage/
 .dolt/
 *.db
 .beads-credential-key
+
+# Kepie — local cache of upstream repo (HazAT/pi-interactive-subagents)
+.kepie

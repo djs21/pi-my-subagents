@@ -111,11 +111,11 @@ export async function launchSubagent(
   const { inheritsConversationContext } = launchBehavior;
 
   const modeHint = agentDefs?.autoExit
-    ? "Complete your task autonomously."
-    : "Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time.";
+    ? "Complete your task autonomously. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request."
+    : "Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request.";
   const summaryInstruction = agentDefs?.autoExit
     ? "Your FINAL assistant message should summarize what you accomplished."
-    : "Your FINAL assistant message (before calling subagent_done or before the user exits) should summarize what you accomplished.";
+    : "Your FINAL assistant message (before calling subagent_done, caller_ping, or before the user exits) should summarize what you accomplished.";
   const denySet = resolveDenyTools(agentDefs);
   const identity = agentDefs?.body ?? params.systemPrompt ?? null;
   const systemPromptMode = agentDefs?.systemPromptMode;

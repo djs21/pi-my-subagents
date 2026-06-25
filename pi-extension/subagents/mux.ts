@@ -116,6 +116,8 @@ import {
   createTileSurface,
   resetTilingLayout,
 } from "./mux-layout.ts";
+import { herdrResizeStack, herdrGetPaneHeight } from "./herdr-mux.ts";
+import { tmuxResizeStack, tmuxGetPaneHeight } from "./tmux-mux.ts";
 
 /**
  * Create a new terminal surface for a subagent.
@@ -123,12 +125,18 @@ import {
  * DWM tile layout: first subagent splits the main pane to the right,
  * subsequent subagents split the previous subagent pane downward.
  * Result: main agent on left, subagents stacked vertically on right.
+ * Panels are also equalized to equal heights via the backend-specific
+ * resize functions.
  *
  * Returns an identifier (herdr pane_id or tmux pane_id like `%12`).
  */
 export function createSurface(name: string): string {
   const backend = getMuxBackend();
-  return createTileSurface(name, backend, createSurfaceSplit);
+
+  const resizeFn = backend === "herdr" ? herdrResizeStack : tmuxResizeStack;
+  const getHeightFn = backend === "herdr" ? herdrGetPaneHeight : tmuxGetPaneHeight;
+
+  return createTileSurface(name, backend, createSurfaceSplit, resizeFn, getHeightFn);
 }
 
 /**
