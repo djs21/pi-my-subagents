@@ -22,6 +22,7 @@ import {
 } from "./agent.ts";
 import {
   createSurface,
+  renameSurface,
   sendLongCommand,
   pollForExit,
   closeSurface,
@@ -91,6 +92,11 @@ export async function launchSubagent(
 
   const surfacePreCreated = !!options?.surface;
   const surface = options?.surface ?? createSurface(params.name);
+
+  // Label the pane with agent:name format (best-effort)
+  const label = [params.agent, params.name].filter(Boolean).join(": ");
+  renameSurface(surface, label);
+
   if (!surfacePreCreated) {
     await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
   }

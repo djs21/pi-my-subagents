@@ -332,6 +332,32 @@ export function closeSurface(surface: string): void {
 }
 
 /**
+ * Rename a pane/surface to the given label.
+ * Best-effort: failures are silently ignored.
+ */
+export function renameSurface(surface: string, label: string): void {
+  const backend = getMuxBackend();
+
+  if (backend === "herdr") {
+    try {
+      execFileSync("herdr", ["pane", "rename", surface, label], { encoding: "utf8" });
+    } catch {
+      // best-effort
+    }
+    return;
+  }
+
+  if (backend === "tmux") {
+    try {
+      execFileSync("tmux", ["select-pane", "-t", surface, "-T", label], { encoding: "utf8" });
+    } catch {
+      // best-effort
+    }
+    return;
+  }
+}
+
+/**
  * Rename the current tab/window.
  */
 export function renameCurrentTab(title: string): void {
