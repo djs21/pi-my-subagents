@@ -47,7 +47,7 @@ import {
   startWidgetRefresh as widgetStartWidgetRefresh,
   resolveResultPresentation,
 } from "./widget.ts";
-import { startStatusRefresh } from "./interrupt.ts";
+import { startStatusRefresh, observeRunningSubagent } from "./interrupt.ts";
 import { createStatusState, loadStatusConfig } from "./status.ts";
 
 // ─── Module-level state ─────────────────────────────────────────
