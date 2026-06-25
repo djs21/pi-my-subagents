@@ -101,7 +101,7 @@ export async function executeSubagentTool(
   startWidgetRefresh();
   startStatusRefresh(pi, statusConfig, runningSubagents, updateWidget);
 
-  watchSubagent(running, watcherAbort.signal)
+  watchSubagent(running, watcherAbort.signal, observeRunningSubagent)
     .then((result) => {
       updateWidget();
 
@@ -231,7 +231,7 @@ export async function executeSubagentResume(
   const watcherAbort = new AbortController();
   running.abortController = watcherAbort;
 
-  watchSubagent(running, watcherAbort.signal)
+  watchSubagent(running, watcherAbort.signal, observeRunningSubagent)
     .then((result) => {
       updateWidget();
 
