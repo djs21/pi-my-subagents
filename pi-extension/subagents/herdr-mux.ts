@@ -1,4 +1,11 @@
 import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+
+function dbg(...args: any[]) {
+  try {
+    writeFileSync("/tmp/herdr-dbg.log", args.map(a => typeof a === "string" ? a : JSON.stringify(a, null, 2)).join(" ") + "\n", { flag: "a" });
+  } catch {}
+}
 
 /**
  * Get the current height of a herdr pane in terminal rows.
@@ -13,8 +20,11 @@ export function herdrGetPaneHeight(pane: string): number {
     const data = JSON.parse(raw);
     const panes = data?.result?.layout?.panes ?? [];
     const found = panes.find((p: any) => p.pane_id === pane);
-    return found?.rect?.height ?? 0;
-  } catch {
+    const h = found?.rect?.height ?? 0;
+    dbg(`herdrGetPaneHeight(${pane}) => ${h}`);
+    return h;
+  } catch (e) {
+    dbg(`herdrGetPaneHeight(${pane}) ERROR: ${e}`);
     return 0;
   }
 }
@@ -28,8 +38,13 @@ export function herdrGetPaneHeight(pane: string): number {
 export function herdrResizeStack(panes: string[], targetHeight: number): void {
   if (panes.length < 2) return;
 
+  dbg(`=== herdrResizeStack START ===`);
+  dbg(`panes: ${JSON.stringify(panes)}, targetHeight: ${targetHeight}`);
+
   try {
     for (let i = 0; i < panes.length - 1; i++) {
+      dbg(`--- Iteration ${i} ---`);
+
       // Re-fetch layout before each resize for accurate measurements
       const raw = execFileSync("herdr", ["pane", "layout", "--pane", panes[i]], {
         encoding: "utf8",
@@ -38,6 +53,9 @@ export function herdrResizeStack(panes: string[], targetHeight: number): void {
       const layoutPanes: Array<{ pane_id: string; rect: { height: number } }> =
         data?.result?.layout?.panes ?? [];
 
+      dbg(`layout panes found: ${layoutPanes.length}`);
+      dbg(`all pane ids: ${JSON.stringify(layoutPanes.map(p => ({ id: p.pane_id, h: p.rect.height })))}`);
+
       // Sum heights of THIS pane and all panes below it
       let remainingTotal = 0;
       let topHeight = 0;
@@ -45,17 +63,30 @@ export function herdrResizeStack(panes: string[], targetHeight: number): void {
         const h = layoutPanes.find((p) => p.pane_id === panes[j])?.rect?.height ?? 0;
         if (j === i) topHeight = h;
         remainingTotal += h;
+        dbg(`  find ${panes[j]}: height=${h}`);
       }
 
-      if (remainingTotal <= 0 || topHeight <= 0) continue;
+      dbg(`topHeight=${topHeight}, remainingTotal=${remainingTotal}`);
+
+      if (remainingTotal <= 0 || topHeight <= 0) {
+        dbg(`SKIP: remainingTotal=${remainingTotal}, topHeight=${topHeight}`);
+        continue;
+      }
 
       const currentRatio = topHeight / remainingTotal;
       const targetRatio = targetHeight / remainingTotal;
 
-      if (Math.abs(targetRatio - currentRatio) < 0.01) continue;
+      dbg(`currentRatio=${currentRatio.toFixed(4)}, targetRatio=${targetRatio.toFixed(4)}`);
+
+      if (Math.abs(targetRatio - currentRatio) < 0.01) {
+        dbg(`SKIP: delta < 0.01`);
+        continue;
+      }
 
       const delta = Math.abs(targetRatio - currentRatio);
       const direction = targetRatio > currentRatio ? "down" : "up";
+
+      dbg(`RESIZE: pane=${panes[i]}, direction=${direction}, amount=${Math.min(delta, 0.8).toFixed(4)}`);
 
       execFileSync("herdr", [
         "pane",
@@ -64,8 +95,12 @@ export function herdrResizeStack(panes: string[], targetHeight: number): void {
         "--amount", String(Math.min(delta, 0.8)),
         "--pane", panes[i],
       ], { encoding: "utf8" });
+
+      dbg(`Resize ${i} done`);
     }
-  } catch {
+    dbg(`=== herdrResizeStack END ===`);
+  } catch (e) {
+    dbg(`herdrResizeStack ERROR: ${e}`);
     // Best-effort — silently ignore failures
   }
 }
