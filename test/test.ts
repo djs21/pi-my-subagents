@@ -576,10 +576,11 @@ describe("status.ts", () => {
       latestEvent: "tool_execution_start",
     }, 5_000);
 
-    const snapshot = classifyStatus(state, 240_000);
+    // Within the 120s idle threshold: stays active
+    const snapshot = classifyStatus(state, 60_000);
     assert.equal(snapshot.kind, "active");
     assert.equal(snapshot.activityLabel, "bash");
-    assert.equal(snapshot.activeDurationText, "3m");
+    assert.equal(snapshot.activeDurationText, "55s");
   });
 
   it("classifies waiting snapshots as healthy idle without becoming stalled", () => {
@@ -593,9 +594,10 @@ describe("status.ts", () => {
       latestEvent: "agent_end",
     }, 10_000);
 
-    const snapshot = classifyStatus(state, 240_000);
+    // Within the 120s idle threshold: stays waiting
+    const snapshot = classifyStatus(state, 60_000);
     assert.equal(snapshot.kind, "waiting");
-    assert.equal(snapshot.waitingDurationText, "3m");
+    assert.equal(snapshot.waitingDurationText, "50s");
   });
 
   it("detects stalled transitions and recovery", () => {
@@ -617,6 +619,43 @@ describe("status.ts", () => {
     advanced = advanceStatusState(state, 97_000);
     assert.equal(advanced.transition, "recovered");
     assert.equal(advanced.snapshot.kind, "waiting");
+  });
+
+  it("classifies long-idle active as stalled with idle label", () => {
+    let state = createStatusState({ source: "pi", startTimeMs: 0 });
+    state = observeStatus(state, {
+      snapshot: "present",
+      updatedAt: 10_000,
+      sequence: 1,
+      phase: "active",
+      active: true,
+      activeScope: "tool",
+      activeSince: 10_000,
+      activityLabel: "bash",
+      latestEvent: "tool_execution_start",
+    }, 10_000);
+
+    // After 130s without activity file update, should be stalled (idle threshold is 120s)
+    const snapshot = classifyStatus(state, 140_000);
+    assert.equal(snapshot.kind, "stalled");
+    assert.equal(snapshot.statusLabel, "idle");
+  });
+
+  it("classifies long-idle waiting as stalled with idle label", () => {
+    let state = createStatusState({ source: "pi", startTimeMs: 0 });
+    state = observeStatus(state, {
+      snapshot: "present",
+      updatedAt: 10_000,
+      sequence: 1,
+      phase: "waiting",
+      waitingSince: 10_000,
+      latestEvent: "agent_end",
+    }, 10_000);
+
+    // After 130s without activity file update, should be stalled (idle threshold is 120s)
+    const snapshot = classifyStatus(state, 140_000);
+    assert.equal(snapshot.kind, "stalled");
+    assert.equal(snapshot.statusLabel, "idle");
   });
 
   it("keeps the last healthy kind during transient snapshot loss", () => {
@@ -828,13 +867,13 @@ describe("status.ts", () => {
       },
       419_000,
     );
-    const waitingLine = formatStatusLine("Worker", classifyStatus(waitingState, 300_000));
+    const waitingLine = formatStatusLine("Worker", classifyStatus(waitingState, 240_000));
     const recoveredLine = formatTransitionLine("Worker", classifyStatus(activeState, 420_000), "recovered");
     const lines = [waitingLine, recoveredLine, "Scout running 2m.", "Reviewer running 4m.", "Planner running 6m."];
     const capped = capStatusLines(lines, 3);
     const aggregate = formatStatusAggregate(lines, 3);
 
-    assert.equal(waitingLine, "Worker running 5m, waiting 2m.");
+    assert.equal(waitingLine, "Worker running 4m, waiting 1m.");
     assert.equal(recoveredLine, "Worker running 7m, recovered; active (bash 1s).");
     assert.deepEqual(capped.visibleLines, [waitingLine, recoveredLine, "Scout running 2m."]);
     assert.equal(capped.overflow, 2);

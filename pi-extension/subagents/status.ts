@@ -3,6 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const SNAPSHOT_STALLED_AFTER_MS = 60_000;
+/** How long since the last activity update before an active/waiting subagent is considered stalled. */
+export const ACTIVITY_STALLED_AFTER_MS = 120_000;
 export const DEFAULT_STATUS_LINE_LIMIT = 4;
 export const MAX_STATUS_NAME_LENGTH = 72;
 export const MAX_STATUS_LINE_LENGTH = 120;
@@ -339,8 +341,24 @@ export function classifyStatus(state: SubagentStatusState, now: number): StatusS
   let statusLabel: string | null = null;
 
   if (state.snapshotState === "present") {
-    if (state.phase === "active" || state.activeNow) {
+    if ((state.phase === "active" || state.activeNow) && state.lastActivityAtMs != null) {
+      const idleMs = Math.max(0, now - state.lastActivityAtMs);
+      if (idleMs >= ACTIVITY_STALLED_AFTER_MS) {
+        kind = "stalled";
+        statusLabel = "idle";
+      } else {
+        kind = "active";
+      }
+    } else if (state.phase === "active" || state.activeNow) {
       kind = "active";
+    } else if (state.phase === "waiting" && state.lastActivityAtMs != null) {
+      const idleMs = Math.max(0, now - state.lastActivityAtMs);
+      if (idleMs >= ACTIVITY_STALLED_AFTER_MS) {
+        kind = "stalled";
+        statusLabel = "idle";
+      } else {
+        kind = "waiting";
+      }
     } else if (state.phase === "waiting") {
       kind = "waiting";
     } else if (state.phase === "done") {
