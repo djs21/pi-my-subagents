@@ -84,16 +84,28 @@ export function herdrResizeStack(panes: string[], targetHeight: number): void {
       }
 
       const delta = Math.abs(targetRatio - currentRatio);
-      const direction = targetRatio > currentRatio ? "down" : "up";
 
-      dbg(`RESIZE: pane=${panes[i]}, direction=${direction}, amount=${Math.min(delta, 0.8).toFixed(4)}`);
+      // Herdr: `--pane X --direction up` adjusts border ABOVE X,
+      // `--pane X --direction down` adjusts border BELOW X.
+      //
+      // To adjust border between panes[i] and panes[i+1]:
+      //   - SHRINK panes[i] (currentRatio > targetRatio):
+      //     move border UP using pane BELOW border:
+      //     `--pane panes[i+1] --direction up`
+      //   - GROW panes[i] (currentRatio < targetRatio):
+      //     move border DOWN using pane ABOVE border:
+      //     `--pane panes[i] --direction down`
+      const targetPane = currentRatio > targetRatio ? panes[i + 1] : panes[i];
+      const direction = currentRatio > targetRatio ? "up" : "down";
+
+      dbg(`RESIZE: pane=${targetPane}, direction=${direction}, amount=${Math.min(delta, 0.8).toFixed(4)} (topPanes[i]=${panes[i]})`);
 
       execFileSync("herdr", [
         "pane",
         "resize",
         "--direction", direction,
         "--amount", String(Math.min(delta, 0.8)),
-        "--pane", panes[i],
+        "--pane", targetPane,
       ], { encoding: "utf8" });
 
       dbg(`Resize ${i} done`);
