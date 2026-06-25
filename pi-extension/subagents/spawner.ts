@@ -66,7 +66,10 @@ export async function launchSubagent(
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
 
-  const agentDefs = params.agent ? loadAgentDefaults(params.agent) : null;
+  // Auto-resolve agent: explicit params.agent wins (case-any), else try name as fallback
+  const agentName = params.agent ?? params.name;
+  const agentDefs = agentName ? loadAgentDefaults(agentName.toLowerCase()) : null;
+  const resolvedAgent = agentDefs?.name ?? params.agent; // track which agent actually resolved
   const effectiveModel = params.model ?? agentDefs?.model;
   const effectiveTools = params.tools ?? agentDefs?.tools;
   const effectiveSkills = params.skills ?? agentDefs?.skills;
@@ -202,7 +205,7 @@ export async function launchSubagent(
   });
 
   const running: RunningSubagent = {
-    id, name: params.name, task: params.task, agent: params.agent,
+    id, name: params.name, task: params.task, agent: resolvedAgent,
     surface, startTime, sessionFile: subagentSessionFile,
     launchScriptFile, activityFile,
     model: effectiveModel,

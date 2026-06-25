@@ -80,9 +80,10 @@ export async function executeSubagentTool(
   ctx: any,
   pi: ExtensionAPI,
 ) {
-  // Prevent self-spawning
+  // Prevent self-spawning (check agent param first, then name as fallback)
   const currentAgent = process.env.PI_SUBAGENT_AGENT;
-  if (params.agent && currentAgent && params.agent === currentAgent) {
+  const spawnAgent = params.agent ?? params.name;
+  if (spawnAgent && currentAgent && spawnAgent.toLowerCase() === currentAgent.toLowerCase()) {
     return {
       content: [{ type: "text", text: `You are the ${currentAgent} agent — do not start another ${currentAgent}. You were spawned to do this work yourself. Complete the task directly.` }],
       details: { error: "self-spawn blocked" },
