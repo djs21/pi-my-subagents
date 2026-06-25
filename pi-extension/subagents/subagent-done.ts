@@ -181,16 +181,26 @@ export default function (pi: ExtensionAPI) {
       // can report a clear failure with the underlying error message.
       // Without this the parent would only see exit code 0 and a stale
       // assistant message, mistaking the crash for a successful completion.
+      //
+      // For clean completions (no error), we do NOT write a .exit sidecar —
+      // the terminal sentinel (__SUBAGENT_DONE_$?__) handles detection instead,
+      // which gives the session file time to flush before the parent reads it.
+      // See: https://github.com/HazAT/pi-interactive-subagents (original design)
       const errorInfo = findLatestAssistantError(messages);
       const sessionFile = process.env.PI_SUBAGENT_SESSION;
-      if (sessionFile) {
+      if (errorInfo && sessionFile) {
         try {
-          const exitData = errorInfo
-            ? { type: "error", errorMessage: errorInfo.errorMessage, stopReason: errorInfo.stopReason }
-            : { type: "done" };
-          writeFileSync(`${sessionFile}.exit`, JSON.stringify(exitData));
+          writeFileSync(
+            `${sessionFile}.exit`,
+            JSON.stringify({
+              type: "error",
+              errorMessage: errorInfo.errorMessage,
+              stopReason: errorInfo.stopReason,
+            }),
+          );
         } catch {
-          // Best effort
+          // Best effort — even without the sidecar, watcher's session-file
+          // fallback can still recover the errorMessage.
         }
       }
 
