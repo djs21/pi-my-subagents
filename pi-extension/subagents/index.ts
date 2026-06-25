@@ -137,28 +137,7 @@ function resolveInterruptTarget(params: { id?: string; name?: string }):
   return interruptResolveInterruptTarget(params, runningSubagents);
 }
 
-export const __test__ = {
-  borderLine,
-  getShellReadyDelayMs,
-  renderSubagentWidgetLines,
-  loadAgentDefaults,
-  discoverAgentDefinitions,
-  resolveAgentExtensions,
-  buildAgentResourceArgs,
-  resolveEffectiveSessionMode,
-  resolveLaunchBehavior,
-  resolveEffectiveInteractive,
-  buildSubagentToolAllowlist,
-  buildPiPromptArgs,
-  resolveDenyTools,
-  resolveResumeLaunchBehavior,
-  runningSubagents,
-  formatElapsed,
-  resolveResultPresentation,
-  handleSubagentInterrupt,
-  resolveInterruptTarget,
-  requestSubagentInterrupt,
-};
+export { __test__ } from "./test-slice.ts";
 
 /**
  * Launch a subagent: creates the multiplexer pane, builds the command, and
