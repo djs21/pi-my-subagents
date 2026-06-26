@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
-  resetTilingLayout,
+  resetLayout,
   createTileSurface,
 } from "../pi-extension/subagents/mux-layout.ts";
 
@@ -33,7 +33,7 @@ describe("mux-layout.ts equalize stack", () => {
     splitCalls = [];
     resizeCalls = [];
     heightReturns = {};
-    resetTilingLayout();
+    resetLayout();
   });
 
   // Cycle 1: 1 subagent → split right, no equalize
@@ -138,15 +138,15 @@ describe("mux-layout.ts equalize stack", () => {
     assert.deepEqual(resizeCalls[0].panes, ["pane-sub-b", "pane-sub-c"]);
   });
 
-  // Cycle 5: resetTilingLayout → clears stack
-  it("resetTilingLayout() → clears stack", () => {
+  // Cycle 5: resetLayout → clears stack
+  it("resetLayout() → clears stack", () => {
     heightReturns = { "pane-sub-a": 600 };
 
     createTileSurface("sub-a", "tmux", mockSplitFn, mockResizeFn, mockGetHeightFn);
     createTileSurface("sub-b", "tmux", mockSplitFn, mockResizeFn, mockGetHeightFn);
     assert.equal(resizeCalls.length, 1);  // stack had 2 panes
 
-    resetTilingLayout();
+    resetLayout();
 
     resizeCalls = [];
     // sub-c starts fresh: right split, no equalize (only 1 pane in stack)

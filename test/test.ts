@@ -2243,7 +2243,7 @@ describe("agent extensions & skills", () => {
 
 // ── Equalize Stack TDD ─────────────────────────────────────────────
 
-import { resetTilingLayout, createTileSurface } from "../pi-extension/subagents/mux-layout.ts";
+import { resetLayout, createTileSurface } from "../pi-extension/subagents/mux-layout.ts";
 
 describe("mux-layout.ts equalize stack", () => {
   let splitCalls: Array<{ name: string; direction: string; from?: string }> = [];
@@ -2267,7 +2267,7 @@ describe("mux-layout.ts equalize stack", () => {
     splitCalls = [];
     resizeCalls = [];
     heightReturns = {};
-    resetTilingLayout();
+    resetLayout();
   });
 
   // Cycle 1: 1 subagent → split right, no equalize

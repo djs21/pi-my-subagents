@@ -114,7 +114,7 @@ function sleepSync(milliseconds: number): void {
 
 import {
   createTileSurface,
-  resetTilingLayout,
+  resetLayout,
 } from "./mux-layout.ts";
 import { herdrResizeStack, herdrGetPaneHeight } from "./herdr-mux.ts";
 import { tmuxResizeStack, tmuxGetPaneHeight } from "./tmux-mux.ts";

@@ -26,24 +26,30 @@ let stackPanes: string[] = [];
  * Equalize heights of all panes in the stack so each gets 1/N of total height.
  * No-op when fewer than 2 panes.
  */
-export function equalizeStack(
+export function equalizePanes(
   panes: string[],
-  resizeFn: (panes: string[], targetHeight: number) => void,
-  getHeightFn: (pane: string) => number,
+  resizeFn: (panes: string[], targetSize: number) => void,
+  getSizeFn: (pane: string) => number,
 ): void {
   if (panes.length < 2) return;
-  const totalHeight = panes.reduce((sum, p) => sum + getHeightFn(p), 0);
+  const totalHeight = panes.reduce((sum, p) => sum + getSizeFn(p), 0);
   const target = Math.floor(totalHeight / panes.length);
   resizeFn(panes, target);
 }
 
+/** @deprecated Use equalizePanes instead */
+export const equalizeStack = equalizePanes;
+
 /**
  * Reset the layout tracking. Call when starting fresh (e.g., new session).
  */
-export function resetTilingLayout(): void {
+export function resetLayout(): void {
   lastSubagentSurface = null;
   stackPanes = [];
 }
+
+/** @deprecated Use resetLayout instead */
+export const resetTilingLayout = resetLayout;
 
 /**
  * Create a tiled surface for a subagent.
@@ -80,7 +86,7 @@ export function createTileSurface(
     lastSubagentSurface = splitFn(name, "down", lastSubagentSurface);
     stackPanes.push(lastSubagentSurface);
     if (resizeFn && getHeightFn) {
-      equalizeStack(stackPanes, resizeFn, getHeightFn);
+      equalizePanes(stackPanes, resizeFn, getHeightFn);
     }
     return lastSubagentSurface;
   } catch {
