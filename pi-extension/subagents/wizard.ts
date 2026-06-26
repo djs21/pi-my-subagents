@@ -16,6 +16,20 @@ import {
 } from "@earendil-works/pi-tui";
 import { discoverAgentNames, discoverExtensions, discoverSkills, formatModelLabel, validateModel, validatePath, type ExtensionOption, type SkillOption } from "./discovery.ts";
 
+// ─── Config Category Picker ─────────────────────────────────────
+
+export async function pickConfigCategory(ctx: ExtensionCommandContext): Promise<string | undefined> {
+  const choice = await ctx.ui.select("Pilih konfigurasi:", [
+    "🤖 Agents — model, extensions, skills per agent",
+    "📐 Layout — tata letak pane (tiling / bottom-stack)",
+    "❌ Batal",
+  ]);
+  if (!choice || choice === "❌ Batal") return undefined;
+  if (choice.startsWith("🤖")) return "agents";
+  if (choice.startsWith("📐")) return "layout";
+  return undefined;
+}
+
 // ─── Agent Picker ───────────────────────────────────────────────
 
 export async function pickAgent(ctx: ExtensionCommandContext, projectAgentsDir?: string): Promise<string | undefined> {

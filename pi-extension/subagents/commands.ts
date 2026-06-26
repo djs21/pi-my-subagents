@@ -7,7 +7,7 @@
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { LayoutType } from "./types.ts";
-import { pickAgent, pickField, pickScope, editModel, editExtensions, editSkills, editLayout } from "./wizard.ts";
+import { pickAgent, pickField, pickScope, pickConfigCategory, editModel, editExtensions, editSkills, editLayout } from "./wizard.ts";
 import { readSubagentConfig, writeSubagentConfig, getConfigPath, type SubagentConfig } from "./config.ts";
 import { discoverAgentNames } from "./discovery.ts";
 
@@ -55,7 +55,16 @@ async function handleSubagentConfigCommand(args: string, ctx: ExtensionCommandCo
     return;
   }
 
-  // Interactive wizard: pick agent → pick field → edit → save
+  // Interactive wizard: pick category → agents or layout
+  const category = await pickConfigCategory(ctx);
+  if (!category) return;
+
+  if (category === "layout") {
+    await editTopLevelLayout(ctx);
+    return;
+  }
+
+  // Agents configuration: pick agent → pick field → edit → save
   const pickedAgent = await pickAgent(ctx);
   if (!pickedAgent) return;
 
