@@ -15,6 +15,10 @@
  */
 
 import type { MuxBackend } from "./mux.ts";
+import type { LayoutType } from "./types.ts";
+
+/** Shared split ratio: new pane gets 30%, main pane gets 70%. */
+export const DEFAULT_SPLIT_RATIO = 0.30;
 
 /** Track the most recently created subagent pane for DWM tiling. */
 let lastSubagentSurface: string | null = null;
@@ -66,34 +70,38 @@ export const resetTilingLayout = resetLayout;
 export function createTileSurface(
   name: string,
   backend: MuxBackend | null,
-  splitFn: (name: string, direction: "left" | "right" | "up" | "down", fromSurface?: string) => string,
-  resizeFn?: (panes: string[], targetHeight: number) => void,
-  getHeightFn?: (pane: string) => number,
+  splitFn: (name: string, direction: "left" | "right" | "up" | "down", fromSurface?: string, ratio?: number) => string,
+  resizeFn?: (panes: string[], targetSize: number) => void,
+  getSizeFn?: (pane: string) => number,
+  layoutMode: LayoutType = "tiling",
 ): string {
   if (!backend) throw new Error("No mux backend available");
 
+  const firstDirection = layoutMode === "bottom-stack" ? "down" : "right";
+  const nextDirection = layoutMode === "bottom-stack" ? "right" : "down";
+  const useFirstRatio = layoutMode === "bottom-stack";
+
   if (!lastSubagentSurface) {
-    // First subagent: right split from current pane
-    lastSubagentSurface = splitFn(name, "right", undefined);
+    lastSubagentSurface = useFirstRatio
+      ? splitFn(name, firstDirection, undefined, DEFAULT_SPLIT_RATIO)
+      : splitFn(name, firstDirection, undefined);
     stackPanes.push(lastSubagentSurface);
     return lastSubagentSurface;
   }
 
-  // Subsequent subagents: down split from the previous subagent pane
-  // If the previous pane was already closed (e.g. subagent completed),
-  // fall back to a right split from the main pane.
   try {
-    lastSubagentSurface = splitFn(name, "down", lastSubagentSurface);
+    lastSubagentSurface = splitFn(name, nextDirection, lastSubagentSurface);
     stackPanes.push(lastSubagentSurface);
-    if (resizeFn && getHeightFn) {
-      equalizePanes(stackPanes, resizeFn, getHeightFn);
+    if (resizeFn && getSizeFn) {
+      equalizePanes(stackPanes, resizeFn, getSizeFn);
     }
     return lastSubagentSurface;
   } catch {
-    // Pane was closed — reset layout and retry with right split
     lastSubagentSurface = null;
     stackPanes = [];
-    lastSubagentSurface = splitFn(name, "right", undefined);
+    lastSubagentSurface = useFirstRatio
+      ? splitFn(name, firstDirection, undefined, DEFAULT_SPLIT_RATIO)
+      : splitFn(name, firstDirection, undefined);
     stackPanes.push(lastSubagentSurface);
     return lastSubagentSurface;
   }

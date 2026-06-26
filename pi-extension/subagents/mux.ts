@@ -115,9 +115,12 @@ function sleepSync(milliseconds: number): void {
 import {
   createTileSurface,
   resetLayout,
+  DEFAULT_SPLIT_RATIO,
 } from "./mux-layout.ts";
-import { herdrResizeStack, herdrGetPaneHeight } from "./herdr-mux.ts";
-import { tmuxResizeStack, tmuxGetPaneHeight } from "./tmux-mux.ts";
+import { herdrResizeStack, herdrGetPaneHeight, herdrResizeWidths, herdrGetPaneWidth } from "./herdr-mux.ts";
+import { tmuxResizeStack, tmuxGetPaneHeight, tmuxResizeWidths, tmuxGetPaneWidth } from "./tmux-mux.ts";
+import { loadSubagentConfig } from "./config.ts";
+import type { LayoutType } from "./types.ts";
 
 /**
  * Create a new terminal surface for a subagent.
@@ -130,13 +133,26 @@ import { tmuxResizeStack, tmuxGetPaneHeight } from "./tmux-mux.ts";
  *
  * Returns an identifier (herdr pane_id or tmux pane_id like `%12`).
  */
-export function createSurface(name: string): string {
+export function createSurface(name: string, layout?: LayoutType): string {
   const backend = getMuxBackend();
 
+  // Read config for layout, with explicit override priority
+  const effectiveLayout = layout ?? loadSubagentConfig(process.cwd())?.layout ?? "tiling";
+
+  // Validate layout
+  const validLayouts: LayoutType[] = ["tiling", "bottom-stack"];
+  const validatedLayout = validLayouts.includes(effectiveLayout) ? effectiveLayout : "tiling";
+
+  if (validatedLayout === "bottom-stack") {
+    const resizeFn = backend === "herdr" ? herdrResizeWidths : tmuxResizeWidths;
+    const getSizeFn = backend === "herdr" ? herdrGetPaneWidth : tmuxGetPaneWidth;
+    return createTileSurface(name, backend, createSurfaceSplit, resizeFn, getSizeFn, "bottom-stack");
+  }
+
+  // Default: tiling
   const resizeFn = backend === "herdr" ? herdrResizeStack : tmuxResizeStack;
   const getHeightFn = backend === "herdr" ? herdrGetPaneHeight : tmuxGetPaneHeight;
-
-  return createTileSurface(name, backend, createSurfaceSplit, resizeFn, getHeightFn);
+  return createTileSurface(name, backend, createSurfaceSplit, resizeFn, getHeightFn, "tiling");
 }
 
 /**
@@ -147,6 +163,7 @@ export function createSurfaceSplit(
   name: string,
   direction: "left" | "right" | "up" | "down",
   fromSurface?: string,
+  ratio?: number,
 ): string {
   const backend = requireMuxBackend();
 
@@ -154,10 +171,11 @@ export function createSurfaceSplit(
     const targetPane = fromSurface ?? process.env.HERDR_PANE_ID;
     if (!targetPane) throw new Error("No target pane for herdr split");
     const dir = direction === "left" || direction === "right" ? "right" : "down";
-    const result = execFileSync(
-      "herdr", ["pane", "split", targetPane, "--direction", dir, "--no-focus"],
-      { encoding: "utf8" },
-    );
+    const args = ["pane", "split", targetPane, "--direction", dir, "--no-focus"];
+    if (ratio !== undefined) {
+      args.push("--ratio", String(ratio));
+    }
+    const result = execFileSync("herdr", args, { encoding: "utf8" });
     const parsed = JSON.parse(result);
     const paneId = parsed?.result?.pane?.pane_id;
     if (!paneId) throw new Error("Failed to parse herdr pane id");
@@ -173,6 +191,10 @@ export function createSurfaceSplit(
     }
     if (direction === "left" || direction === "up") {
       args.push("-b");
+    }
+    if (ratio !== undefined) {
+      // tmux -p is percentage for EXISTING pane, so new pane gets (1-ratio)*100%
+      args.push("-p", String(Math.round((1 - ratio) * 100)));
     }
     const target = fromSurface ?? process.env.TMUX_PANE;
     if (target) {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   resetLayout,
   createTileSurface,
+  DEFAULT_SPLIT_RATIO,
 } from "../pi-extension/subagents/mux-layout.ts";
 
 // ── Equalize Stack TDD ─────────────────────────────────────────────
@@ -155,5 +156,91 @@ describe("mux-layout.ts equalize stack", () => {
     assert.equal(splitCalls.length, 3);
     assert.equal(splitCalls[2].direction, "right");   // fresh start from main pane
     assert.equal(resizeCalls.length, 0);                // only 1 pane, no equalize
+  });
+});
+
+// ── Bottom-Stack Layout Tests ─────────────────────────────────────
+
+describe("mux-layout.ts bottom-stack", () => {
+  let splitCalls: Array<{ name: string; direction: string; from?: string; ratio?: number }> = [];
+  let resizeCalls: Array<{ panes: string[]; targetSize: number }> = [];
+  let sizeReturns: Record<string, number> = {};
+
+  function mockSplitFn(
+    name: string,
+    direction: "left" | "right" | "up" | "down",
+    fromSurface?: string,
+    ratio?: number,
+  ): string {
+    splitCalls.push({ name, direction, from: fromSurface, ratio });
+    return `pane-${name}`;
+  }
+
+  function mockResizeFn(panes: string[], targetSize: number): void {
+    resizeCalls.push({ panes, targetSize });
+  }
+
+  function mockGetSizeFn(pane: string): number {
+    return sizeReturns[pane] ?? 0;
+  }
+
+  beforeEach(() => {
+    splitCalls = [];
+    resizeCalls = [];
+    sizeReturns = {};
+    resetLayout();
+  });
+
+  it("1 subagent → split down with DEFAULT_SPLIT_RATIO", () => {
+    const result = createTileSurface(
+      "sub-a",
+      "tmux",
+      mockSplitFn,
+      mockResizeFn,
+      mockGetSizeFn,
+      "bottom-stack",
+    );
+    assert.equal(result, "pane-sub-a");
+    assert.equal(splitCalls.length, 1);
+    assert.equal(splitCalls[0].direction, "down");
+    assert.equal(splitCalls[0].ratio, DEFAULT_SPLIT_RATIO);
+    assert.equal(resizeCalls.length, 0);
+  });
+
+  it("2 subagents → second split is right, equalize widths", () => {
+    sizeReturns = { "pane-sub-a": 1000 };
+
+    createTileSurface("sub-a", "tmux", mockSplitFn, mockResizeFn, mockGetSizeFn, "bottom-stack");
+    const result = createTileSurface(
+      "sub-b", "tmux", mockSplitFn, mockResizeFn, mockGetSizeFn, "bottom-stack",
+    );
+
+    assert.equal(result, "pane-sub-b");
+    assert.equal(splitCalls.length, 2);
+    assert.equal(splitCalls[1].direction, "right");
+    assert.equal(resizeCalls.length, 1);
+    assert.deepEqual(resizeCalls[0].panes, ["pane-sub-a", "pane-sub-b"]);
+    assert.equal(resizeCalls[0].targetSize, 500);
+  });
+
+  it("pane closure → fallback down split with ratio", () => {
+    sizeReturns = { "pane-sub-a": 1000 };
+    let callCount = 0;
+    const failingSplitFn = (
+      name: string, direction: "left" | "right" | "up" | "down",
+      from?: string, ratio?: number,
+    ): string => {
+      callCount++;
+      if (callCount === 2) throw new Error("pane_not_found");
+      return mockSplitFn(name, direction, from, ratio);
+    };
+
+    createTileSurface("sub-a", "tmux", failingSplitFn, mockResizeFn, mockGetSizeFn, "bottom-stack");
+    createTileSurface("sub-b", "tmux", failingSplitFn, mockResizeFn, mockGetSizeFn, "bottom-stack");
+
+    // After pane closure: fallback should be a down split (first direction for bottom-stack)
+    assert.equal(splitCalls.length, 2);
+    assert.equal(splitCalls[0].direction, "down");    // sub-a first split
+    assert.equal(splitCalls[1].direction, "down");    // sub-b fallback down split
   });
 });

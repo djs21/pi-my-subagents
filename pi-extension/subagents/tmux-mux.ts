@@ -31,3 +31,35 @@ export function tmuxGetPaneHeight(pane: string): number {
     return 0;
   }
 }
+
+/**
+ * Resize all panes in the stack to the same target width.
+ * Uses tmux resize-pane -x for absolute width.
+ * Silently skips panes that fail.
+ */
+export function tmuxResizeWidths(panes: string[], targetWidth: number): void {
+  for (const pane of panes) {
+    try {
+      execFileSync("tmux", ["resize-pane", "-x", String(targetWidth), "-t", pane], {
+        encoding: "utf8",
+      });
+    } catch {
+      // Pane may no longer exist — skip silently
+    }
+  }
+}
+
+/**
+ * Get the current width of a tmux pane in columns.
+ * Returns 0 if pane can't be queried.
+ */
+export function tmuxGetPaneWidth(pane: string): number {
+  try {
+    const result = execFileSync("tmux", ["display-message", "-p", "-t", pane, "#{pane_width}"], {
+      encoding: "utf8",
+    });
+    return parseInt(result.trim(), 10);
+  } catch {
+    return 0;
+  }
+}
