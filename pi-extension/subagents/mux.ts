@@ -193,8 +193,8 @@ export function createSurfaceSplit(
       args.push("-b");
     }
     if (ratio !== undefined) {
-      // tmux -p is percentage for EXISTING pane, so new pane gets (1-ratio)*100%
-      args.push("-p", String(Math.round((1 - ratio) * 100)));
+      // tmux -p is percentage for NEW pane, so new pane gets ratio*100%
+      args.push("-p", String(Math.round(ratio * 100)));
     }
     const target = fromSurface ?? process.env.TMUX_PANE;
     if (target) {
