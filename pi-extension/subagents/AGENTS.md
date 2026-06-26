@@ -7,9 +7,9 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 ## Ownership
 
 - **`mux.ts`** — tmux/herdr backend abstraction (createSurface, sendCommand, pollForExit, etc.)
-- **`herdr-mux.ts`** — herdr backend resize functions (herdrResizeStack, herdrGetPaneHeight)
-- **`tmux-mux.ts`** — tmux backend resize functions (tmuxResizeStack, tmuxGetPaneHeight)
-- **`mux-layout.ts`** — DWM-style tile layout for subagent panes (createTileSurface, resetTilingLayout, equalizeStack, stackPanes)
+- **`herdr-mux.ts`** — herdr backend resize functions. Height: herdrResizeStack, herdrGetPaneHeight. Width: herdrResizeWidths, herdrGetPaneWidth.
+- **`tmux-mux.ts`** — tmux backend resize functions. Height: tmuxResizeStack, tmuxGetPaneHeight. Width: tmuxResizeWidths, tmuxGetPaneWidth.
+- **`mux-layout.ts`** — layout engine for subagent panes (createTileSurface, equalizePanes, DEFAULT_SPLIT_RATIO). Supports tiling (DWM-style) and bottom-stack layouts via layoutMode parameter. state: lastSubagentSurface, stackPanes.
 - **`spawner.ts`** — launch + watch lifecycle (launchSubagent, watchSubagent)
 - **`types.ts`** — core type definitions (SubagentParams, RunningSubagent, SubagentResult, etc.)
 - **`status.ts`** — subagent status state machine (starting → active → waiting → stalled)
@@ -30,7 +30,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 
 - `index.ts` is the extension entry point — registers tools, commands, message renderers, and widgets with pi
 - All modules import from `./mux.ts` for multiplexer operations — never call tmux/herdr directly
-- `mux-layout.ts` is consumed by `mux.ts:createSurface()` — external callers use `createSurface(name)` only
+- `mux-layout.ts` is consumed by `mux.ts:createSurface()` — external callers use `createSurface(name, layout?)` only. Layout can be "tiling" (default) or "bottom-stack". Falls back to config file if not passed explicitly.
 - `spawner.ts` exports `launchSubagent()` and `watchSubagent()` — lifecycle is: launch → poll for exit → close surface
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
 
