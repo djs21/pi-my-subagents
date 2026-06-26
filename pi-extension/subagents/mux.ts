@@ -173,7 +173,8 @@ export function createSurfaceSplit(
     const dir = direction === "left" || direction === "right" ? "right" : "down";
     const args = ["pane", "split", targetPane, "--direction", dir, "--no-focus"];
     if (ratio !== undefined) {
-      args.push("--ratio", String(ratio));
+      // herdr --ratio is the existing pane's share, so pass (1-ratio) for new pane = ratio
+      args.push("--ratio", String(1 - ratio));
     }
     const result = execFileSync("herdr", args, { encoding: "utf8" });
     const parsed = JSON.parse(result);
