@@ -79,7 +79,7 @@ export function createTileSurface(
 
   const firstDirection = layoutMode === "bottom-stack" ? "down" : "right";
   const nextDirection = layoutMode === "bottom-stack" ? "right" : "down";
-  const useFirstRatio = layoutMode === "bottom-stack";
+  const useFirstRatio = true;
 
   if (!lastSubagentSurface) {
     lastSubagentSurface = useFirstRatio

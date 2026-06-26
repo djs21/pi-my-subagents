@@ -9,7 +9,7 @@ import {
 // ── Equalize Stack TDD ─────────────────────────────────────────────
 
 describe("mux-layout.ts equalize stack", () => {
-  let splitCalls: Array<{ name: string; direction: string; from?: string }> = [];
+  let splitCalls: Array<{ name: string; direction: string; from?: string; ratio?: number }> = [];
   let resizeCalls: Array<{ panes: string[]; targetHeight: number }> = [];
   let heightReturns: Record<string, number> = {};
 
@@ -17,8 +17,9 @@ describe("mux-layout.ts equalize stack", () => {
     name: string,
     direction: "left" | "right" | "up" | "down",
     fromSurface?: string,
+    ratio?: number,
   ): string {
-    splitCalls.push({ name, direction, from: fromSurface });
+    splitCalls.push({ name, direction, from: fromSurface, ratio });
     return `pane-${name}`;
   }
 
@@ -49,6 +50,7 @@ describe("mux-layout.ts equalize stack", () => {
     assert.equal(result, "pane-sub-a");
     assert.equal(splitCalls.length, 1);
     assert.equal(splitCalls[0].direction, "right");
+    assert.equal(splitCalls[0].ratio, DEFAULT_SPLIT_RATIO);
     assert.equal(resizeCalls.length, 0);
   });
 
@@ -101,10 +103,11 @@ describe("mux-layout.ts equalize stack", () => {
       name: string,
       direction: "left" | "right" | "up" | "down",
       from?: string,
+      ratio?: number,
     ): string => {
       callCount++;
       if (callCount === 2) throw new Error("pane_not_found");
-      return mockSplitFn(name, direction, from);
+      return mockSplitFn(name, direction, from, ratio);
     };
 
     // sub-a: right split (callCount=1)
