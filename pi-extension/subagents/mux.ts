@@ -174,8 +174,9 @@ export function createSurfaceSplit(
     if (direction === "left" || direction === "up") {
       args.push("-b");
     }
-    if (fromSurface) {
-      args.push("-t", fromSurface);
+    const target = fromSurface ?? process.env.TMUX_PANE;
+    if (target) {
+      args.push("-t", target);
     }
     args.push("-P", "-F", "#{pane_id}");
 
