@@ -98,4 +98,8 @@ export interface RunningSubagent {
 // ─── Constants ──────────────────────────────────────────────────
 
 export const SPAWNING_TOOLS = new Set(["subagent", "subagent_interrupt", "subagents_list", "subagent_resume"]);
+// ─── Layout Type ────────────────────────────────────────────────
+
+export type LayoutType = "tiling" | "bottom-stack";
+
 export const SUBAGENT_CONTROL_TOOLS = ["caller_ping", "subagent_done"] as const;

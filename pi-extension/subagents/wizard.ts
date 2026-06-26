@@ -42,6 +42,7 @@ export async function pickField(ctx: ExtensionCommandContext): Promise<string | 
     "🤖 model — Pilih model untuk agent ini",
     "🧩 extensions — Tambah/hapus extension",
     "🛠️ skills — Tambah/hapus skills",
+    "📐 layout — Pilih tata letak pane (tiling / bottom-stack)",
     "👀 Lihat konfigurasi saat ini",
     "❌ Batal",
   ]);
@@ -49,6 +50,7 @@ export async function pickField(ctx: ExtensionCommandContext): Promise<string | 
   if (choice.startsWith("🤖")) return "model";
   if (choice.startsWith("🧩")) return "extensions";
   if (choice.startsWith("🛠️")) return "skills";
+  if (choice.startsWith("📐")) return "layout";
   if (choice.startsWith("👀")) return "show";
   return undefined;
 }
@@ -377,6 +379,25 @@ function resolveToValue(label: string, items: { label: string; value: string }[]
   const customMatch = label.match(/^(.+) \(custom\)$/);
   return customMatch ? customMatch[1] : undefined;
 }
+
+// ─── Layout Editor ──────────────────────────────────────────────
+
+export async function editLayout(
+  currentLayout: string | undefined,
+  ctx: ExtensionCommandContext,
+): Promise<string | undefined> {
+  const choice = await ctx.ui.select("Pilih layout pane:", [
+    currentLayout === "tiling" ? "✅ tiling — Master di kiri, sub-agent bertumpuk di kanan (current)" : "⬜ tiling — Master di kiri, sub-agent bertumpuk di kanan",
+    currentLayout === "bottom-stack" ? "✅ bottom-stack — Master di atas, sub-agent horizontal di bawah (current)" : "⬜ bottom-stack — Master di atas, sub-agent horizontal di bawah",
+    "❌ Batal",
+  ]);
+  if (!choice || choice === "❌ Batal") return undefined;
+  if (choice.includes("tiling")) return "tiling";
+  if (choice.includes("bottom-stack")) return "bottom-stack";
+  return undefined;
+}
+
+// ─── Shared Helpers ─────────────────────────────────────────────
 
 function toggleChoice(choice: string, working: Set<string>, items: { label: string; value: string }[]): void {
   const prefix = choice.startsWith("➕ ") ? "➕ " : "✅ ";

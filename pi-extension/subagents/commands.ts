@@ -6,7 +6,8 @@
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { pickAgent, pickField, pickScope, editModel, editExtensions, editSkills } from "./wizard.ts";
+import type { LayoutType } from "./types.ts";
+import { pickAgent, pickField, pickScope, editModel, editExtensions, editSkills, editLayout } from "./wizard.ts";
 import { readSubagentConfig, writeSubagentConfig, getConfigPath, type SubagentConfig } from "./config.ts";
 import { discoverAgentNames } from "./discovery.ts";
 
@@ -28,6 +29,13 @@ async function handleSubagentConfigCommand(args: string, ctx: ExtensionCommandCo
 
   // Parse optional agent + field
   const parts = trimmed.split(/\s+/);
+
+  // Top-level commands that aren't agent names
+  if (parts[0] === "layout") {
+    await editTopLevelLayout(ctx);
+    return;
+  }
+
   const agentName = parts[0];
   const field = parts[1];
 
@@ -56,6 +64,11 @@ async function handleSubagentConfigCommand(args: string, ctx: ExtensionCommandCo
 
   if (pickedField === "show") {
     ctx.ui.notify(formatAgentConfigText(pickedAgent), "info");
+    return;
+  }
+
+  if (pickedField === "layout") {
+    await editTopLevelLayout(ctx);
     return;
   }
 
@@ -117,6 +130,30 @@ async function editFieldForAgent(agentName: string, field: string, ctx: Extensio
       ctx.ui.notify(`✅ Config untuk "${agentName}" berhasil disimpan!`, "info");
       ctx.ui.notify("ℹ️ Jalankan /reload agar perubahan langsung berlaku", "info");
     }
+  } else if (field === "layout") {
+    await editTopLevelLayout(ctx);
+  }
+}
+
+// ─── Top-Level Layout Editor ───────────────────────────────────
+
+async function editTopLevelLayout(ctx: ExtensionCommandContext): Promise<void> {
+  const cwd = process.cwd();
+  const globalConfig = readSubagentConfig("global", cwd);
+  const projectConfig = readSubagentConfig("project", cwd);
+  const currentLayout = projectConfig?.layout ?? globalConfig?.layout;
+
+  const newLayout = await editLayout(currentLayout, ctx);
+  if (newLayout === undefined) return;
+
+  const scope = await pickScope(ctx);
+  if (!scope) return;
+
+  const targetConfig = readSubagentConfig(scope, cwd) ?? { agents: {} };
+  targetConfig.layout = newLayout as LayoutType;
+  if (writeSubagentConfig(targetConfig, scope, cwd)) {
+    ctx.ui.notify(`✅ Layout "${newLayout}" berhasil disimpan!`, "info");
+    ctx.ui.notify("ℹ️ Jalankan /reload agar perubahan langsung berlaku", "info");
   }
 }
 
@@ -132,7 +169,7 @@ function showHelp(): string {
     "  `/subagent-config <agent>`      — Pilih field untuk agent",
     "  `/subagent-config <agent> <field>` — Langsung edit field",
     "",
-    "**Fields:** model, extensions, skills",
+    "**Fields:** model, extensions, skills, layout",
     "",
     "**Config locations:**",
     "  Project:  .pi/subagent-config.json",
@@ -164,17 +201,26 @@ function formatConfigText(): string {
 }
 
 function formatScopeConfig(config: SubagentConfig): string {
+  const lines: string[] = [];
+  if (config.layout) lines.push(`- layout: ${config.layout}`);
   const names = Object.keys(config.agents ?? {});
-  if (names.length === 0) return "Belum ada agent dikonfigurasi.\n";
-  return names.map((name) => {
+  if (names.length === 0) {
+    lines.push("Belum ada agent dikonfigurasi.");
+    return lines.join("\n") + "\n";
+  }
+  lines.push("");
+  for (const name of names) {
     const agent = config.agents[name];
-    return [
-      `**${name}**`,
-      `- model: ${agent.model ?? "(default)"}`,
-      `- extensions: ${agent.extensions?.length ? agent.extensions.join(", ") : "(none)"}`,
-      `- skills: ${agent.skills?.length ? agent.skills.join(", ") : "(none)"}`,
-    ].join("\n");
-  }).join("\n") + "\n";
+    lines.push(
+      [
+        `**${name}**`,
+        `- model: ${agent.model ?? "(default)"}`,
+        `- extensions: ${agent.extensions?.length ? agent.extensions.join(", ") : "(none)"}`,
+        `- skills: ${agent.skills?.length ? agent.skills.join(", ") : "(none)"}`,
+      ].join("\n"),
+    );
+  }
+  return lines.join("\n") + "\n";
 }
 
 function formatAgentConfigText(agentName: string): string {
@@ -191,6 +237,12 @@ function formatAgentConfigText(agentName: string): string {
   if (!globalAgent && !projectAgent) {
     lines.push("Belum ada konfigurasi (menggunakan default dari frontmatter .md).");
     return lines.join("\n");
+  }
+
+  if (project?.layout) {
+    lines.push(`*Layout:* ${project.layout}`);
+  } else if (global?.layout) {
+    lines.push(`*Layout (global):* ${global.layout}`);
   }
 
   if (projectAgent) {

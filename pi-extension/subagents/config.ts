@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import type { LayoutType } from "./types.ts";
 
 export interface AgentResourceOverride {
   extensions?: string[];
@@ -10,6 +11,7 @@ export interface AgentResourceOverride {
 
 export interface SubagentConfig {
   agents: Record<string, AgentResourceOverride>;
+  layout?: LayoutType;
 }
 
 function loadJsonConfig(filePath: string): SubagentConfig | null {
@@ -56,13 +58,14 @@ export function writeSubagentConfig(config: SubagentConfig, scope: "project" | "
  * Load subagent config from global + project locations.
  * Project overrides global.
  */
-function loadSubagentConfig(cwd: string): SubagentConfig | null {
+export function loadSubagentConfig(cwd: string): SubagentConfig | null {
   const global = readSubagentConfig("global", cwd);
   const project = readSubagentConfig("project", cwd);
 
   if (!global && !project) return null;
 
   return {
+    layout: project?.layout ?? global?.layout ?? undefined,
     agents: {
       ...(global?.agents ?? {}),
       ...(project?.agents ?? {}),
