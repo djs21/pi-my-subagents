@@ -502,8 +502,27 @@ export async function pollForExit(
 
     // Slow path: read terminal screen for sentinel (crash detection)
     try {
-      const screen = await readScreenAsync(surface, 5);
-      const match = screen.match(/__SUBAGENT_DONE_(\d+)__/);
+      if (getMuxBackend() === "herdr") {
+        // Herdr: use native blocking wait (event-driven, zero polling overhead)
+        try {
+          await execFileAsync("herdr", [
+            "wait", "output", surface,
+            "--match", "__SUBAGENT_DONE_END_",
+            "--regex",
+            "--source", "recent",
+            "--lines", "200",
+            "--timeout", String(options.interval),
+          ], { timeout: options.interval + 2000 });
+          // If we get here, match found
+        } catch {
+          // Timeout — sentinel not yet present, continue polling
+          // (don't fall through to readScreenAsync, just wait for next loop)
+        }
+      }
+
+      // For both backends: read screen and match
+      const screen = await readScreenAsync(surface, 200);
+      const match = screen.match(/__SUBAGENT_DONE_END_(\d+)_([a-f0-9]+)__/);
       if (match) {
         return { reason: "sentinel", exitCode: parseInt(match[1], 10) };
       }
