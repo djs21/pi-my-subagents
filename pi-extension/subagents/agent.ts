@@ -175,6 +175,13 @@ export function discoverAgentDefinitions(): ListedAgentDefinition[] {
     for (const file of readdirSync(dir).filter((e) => e.endsWith(".md"))) {
       const parsed = parseAgentDefinition(readFileSync(join(dir, file), "utf8"), file.replace(/\.md$/, ""));
       if (!parsed) continue;
+      // Merge overrides from subagent-config.json
+      const override = getAgentOverride(process.cwd(), parsed.name);
+      if (override) {
+        if (override.model) parsed.model = override.model;
+        if (override.extensions) parsed.extensions = override.extensions.join(",");
+        if (override.skills) parsed.skills = override.skills.join(",");
+      }
       agents.set(parsed.name, { ...parsed, source });
     }
   }
