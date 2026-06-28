@@ -26,8 +26,11 @@ import {
 import {
   isMuxAvailable,
   createSurface,
+  sendCommand,
   sendLongCommand,
   shellEscape,
+  readScreenAsync,
+  getMuxBackend,
 } from "./mux.ts";
 import {
   launchSubagent,
@@ -188,7 +191,31 @@ export async function executeSubagentResume(
 
   const entryCountBefore = getNewEntries(params.sessionPath, 0).length;
   const surface = createSurface(name);
-  await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
+  {
+    const backend = getMuxBackend();
+    if (backend === "herdr") {
+      // Herdr: pane run executes directly — no readiness race
+    } else {
+      // Tmux: shell readiness polling via marker
+      const timeoutMs = getShellReadyDelayMs();
+      const readyMarker = `__SUBAGENT_READY_${Date.now()}__`;
+      try {
+        sendCommand(surface, `echo '${readyMarker}'`);
+        const deadline = Date.now() + timeoutMs;
+        let ready = false;
+        while (Date.now() < deadline) {
+          const screen = await readScreenAsync(surface, 20);
+          if (screen.includes(readyMarker)) { ready = true; break; }
+          await new Promise<void>((resolve) => setTimeout(resolve, 100));
+        }
+        if (!ready) {
+          console.warn(`[subagents] Shell readiness timeout for resume pane ${surface} after ${timeoutMs}ms, proceeding anyway`);
+        }
+      } catch (err) {
+        console.warn(`[subagents] Shell readiness polling failed for resume pane ${surface}: ${err}, proceeding anyway`);
+      }
+    }
+  }
 
   const parts = ["pi", "--session", shellEscape(params.sessionPath)];
   const subagentDonePath = join(import.meta.dirname, "subagent-done.ts");
@@ -217,7 +244,8 @@ export async function executeSubagentResume(
   if (autoExit) resumeEnvParts.push(`PI_SUBAGENT_AUTO_EXIT=1`);
   const resumeEnvPrefix = resumeEnvParts.join(" ") + " ";
 
-  const command = `${resumeEnvPrefix}${parts.join(" ")}; echo '__SUBAGENT_DONE_'$?'__'`;
+  const nonce = Math.random().toString(16).slice(2, 10);
+  const command = `echo '__SUBAGENT_DONE_START_${nonce}__'; ${resumeEnvPrefix}${parts.join(" ")}; echo '__SUBAGENT_DONE_END_'$?'_${nonce}__'`;
   const launchScriptFile = join(artifactDir, "subagent-scripts", `${name.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "resume"}-resume-${Date.now()}.sh`);
   sendLongCommand(surface, command, {
     scriptPath: launchScriptFile,

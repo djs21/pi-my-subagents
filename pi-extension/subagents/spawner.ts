@@ -23,10 +23,13 @@ import {
 import {
   createSurface,
   renameSurface,
+  sendCommand,
   sendLongCommand,
   pollForExit,
   closeSurface,
   shellEscape,
+  readScreenAsync,
+  getMuxBackend,
 } from "./mux.ts";
 import {
   seedSubagentSessionFile,
@@ -98,7 +101,29 @@ export async function launchSubagent(
   renameSurface(surface, label);
 
   if (!surfacePreCreated) {
-    await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
+    const backend = getMuxBackend();
+    if (backend === "herdr") {
+      // Herdr: pane run executes directly — no readiness race
+    } else {
+      // Tmux: shell readiness polling via marker
+      const timeoutMs = getShellReadyDelayMs();
+      const readyMarker = `__SUBAGENT_READY_${Date.now()}__`;
+      try {
+        sendCommand(surface, `echo '${readyMarker}'`);
+        const deadline = Date.now() + timeoutMs;
+        let ready = false;
+        while (Date.now() < deadline) {
+          const screen = await readScreenAsync(surface, 20);
+          if (screen.includes(readyMarker)) { ready = true; break; }
+          await new Promise<void>((resolve) => setTimeout(resolve, 100));
+        }
+        if (!ready) {
+          console.warn(`[subagents] Shell readiness timeout for pane ${surface} after ${timeoutMs}ms, proceeding anyway`);
+        }
+      } catch (err) {
+        console.warn(`[subagents] Shell readiness polling failed for pane ${surface}: ${err}, proceeding anyway`);
+      }
+    }
   }
 
   const launchBehavior = resolveLaunchBehavior(params, agentDefs);
@@ -197,7 +222,8 @@ export async function launchSubagent(
 
   const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
   const piCommand = cdPrefix + envPrefix + parts.join(" ");
-  const command = `${piCommand}; echo '__SUBAGENT_DONE_'$?'__'`;
+  const nonce = Math.random().toString(16).slice(2, 10);
+  const command = `echo '__SUBAGENT_DONE_START_${nonce}__'; ${piCommand}; echo '__SUBAGENT_DONE_END_'$?'_${nonce}__'`;
   const launchScriptName = `${(params.name || "subagent").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "subagent"}-${id}.sh`;
   const launchScriptFile = join(artifactDir, "subagent-scripts", launchScriptName);
   sendLongCommand(surface, command, {
