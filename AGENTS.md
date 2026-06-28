@@ -105,6 +105,7 @@ Before every action, Orc must cycle through:
 
 - `docs/agents/*.md` — skill configuration docs (issue tracker, triage labels, domain)
 - `docs/research/*.md` — research reports (scout outputs, technical deep-dives)
+- `docs/review/*.md` — code reviews, feasibility analyses, design assessments
 - `test/` — test files (covered by `pi-extension/subagents/` module)
 - `package.json` — project metadata
 - `README.md` — project overview

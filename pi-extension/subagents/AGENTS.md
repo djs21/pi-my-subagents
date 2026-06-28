@@ -16,6 +16,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`activity.ts`** — subagent activity recording
 - **`session.ts`** — session file management (read/write/merge)
 - **`agent.ts`** — agent definition loading, defaults resolution, path resolution
+- **`prompt-inject.ts`** — `before_agent_start` hook that appends available sub-agents to the system prompt
 - **`interrupt.ts`** — interrupt/signal handling for running subagents
 - **`renderers.ts`** — message renderers for result/status/ping/stalled
 - **`subagent.ts`** — tool implementations (subagent, subagent_resume, subagent_interrupt)

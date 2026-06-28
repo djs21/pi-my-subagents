@@ -53,6 +53,7 @@ import {
 } from "./activity.ts";
 import { getAgentOverride } from "./config.ts";
 import { registerSubagentConfigCommand } from "./commands.ts";
+import { registerPromptInject } from "./prompt-inject.ts";
 
 import { launchSubagent, watchSubagent, runningSubagents } from "./spawner.ts";
 
@@ -286,6 +287,9 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
   // ── subagent_resume tool ──
   if (shouldRegister("subagent_resume")) pi.registerTool(createSubagentResumeTool(pi));
+
+  // ── prompt-inject hook ──
+  registerPromptInject(pi);
 
   pi.registerCommand("iterate", {
     description: "Fork session into a subagent for focused work (bugfixes, iteration)",
