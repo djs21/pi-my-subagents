@@ -104,6 +104,7 @@ Before every action, Orc must cycle through:
 ### Contents owned by root
 
 - `docs/agents/*.md` — skill configuration docs (issue tracker, triage labels, domain)
+- `docs/research/*.md` — research reports (scout outputs, technical deep-dives)
 - `test/` — test files (covered by `pi-extension/subagents/` module)
 - `package.json` — project metadata
 - `README.md` — project overview
