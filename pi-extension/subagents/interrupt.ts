@@ -24,6 +24,7 @@ import { activityLabel } from "./agent.ts";
 import {
   sendEscape,
   getMuxBackend,
+  closeSurface,
 } from "./mux.ts";
 
 // ─── Monitoring ─────────────────────────────────────────────────
@@ -112,6 +113,7 @@ export function handleSubagentInterrupt(
   runningSubagents: Map<string, RunningSubagent>,
   onUpdateWidget: () => void,
   sendEscapeKey: (surface: string) => void = sendEscape,
+  closeSurfaceFn: (surface: string) => void = closeSurface,
 ) {
   const resolved = resolveInterruptTarget(params, runningSubagents);
   if ("error" in resolved) {
@@ -137,8 +139,13 @@ export function handleSubagentInterrupt(
   running.statusState = forceStatusAfterInterrupt(running.statusState, now);
   onUpdateWidget();
 
+  // Fully terminate the subagent: abort watcher, close pane, cleanup
+  running.abortController?.abort();
+  closeSurfaceFn(running.surface);
+  runningSubagents.delete(running.id);
+
   return {
-    content: [{ type: "text" as const, text: `Interrupt requested for subagent "${running.name}".` }],
+    content: [{ type: "text" as const, text: `Sub-agent "${running.name}" aborted (interrupted and terminated).` }],
     details: { id: running.id, name: running.name, status: "interrupt_requested" },
   };
 }

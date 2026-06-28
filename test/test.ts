@@ -1731,6 +1731,7 @@ describe("subagent interruption", () => {
     const testApi = (subagentsModule as any).__test__;
     const runningMap = testApi.runningSubagents as Map<string, any>;
     let sentSurface = "";
+    const closedSurfaces: string[] = [];
     runningMap.clear();
 
     withTempDir((dir) => {
@@ -1755,17 +1756,23 @@ describe("subagent interruption", () => {
       writeFileSync(activityFile, `${JSON.stringify(activity)}\n`);
 
       try {
-        runningMap.set("a1", makeRunning({
+        const running = makeRunning({
           activityFile,
           statusState: createStatusState({ source: "pi", startTimeMs: 0 }),
-        }));
+        });
+        runningMap.set("a1", running);
 
-        withMockedNow(20_000, () => testApi.handleSubagentInterrupt({ name: "Worker" }, (surface: string) => {
-          sentSurface = surface;
-        }));
+        withMockedNow(20_000, () => testApi.handleSubagentInterrupt(
+          { name: "Worker" },
+          (surface: string) => { sentSurface = surface; },
+          (surface: string) => { closedSurfaces.push(surface); },
+        ));
 
         assert.equal(sentSurface, "pane-1");
-        const state = runningMap.get("a1").statusState;
+        assert.deepEqual(closedSurfaces, ["pane-1"]);
+        assert.equal(runningMap.has("a1"), false);
+        // statusState is mutated on the running object before cleanup
+        const state = running.statusState;
         const snapshot = classifyStatus(state, 20_000);
         assert.equal(snapshot.kind, "waiting");
         assert.equal(snapshot.activityLabel, "interrupted");
@@ -1782,6 +1789,7 @@ describe("subagent interruption", () => {
     const testApi = (subagentsModule as any).__test__;
     const runningMap = testApi.runningSubagents as Map<string, any>;
     let sentSurface = "";
+    const closedSurfaces: string[] = [];
     runningMap.clear();
 
     const activeState = observeStatus(
@@ -1800,42 +1808,61 @@ describe("subagent interruption", () => {
     );
 
     try {
-      runningMap.set("a1", makeRunning({ statusState: activeState }));
+      const running = makeRunning({ statusState: activeState });
+      runningMap.set("a1", running);
 
-      const result = withMockedNow(20_000, () => testApi.handleSubagentInterrupt({ name: "Worker" }, (surface: string) => {
-        sentSurface = surface;
-      }));
+      const result = withMockedNow(20_000, () => testApi.handleSubagentInterrupt(
+        { name: "Worker" },
+        (surface: string) => { sentSurface = surface; },
+        (surface: string) => { closedSurfaces.push(surface); },
+      ));
 
       assert.equal(sentSurface, "pane-1");
-      assert.equal(result.content[0].text, 'Interrupt requested for subagent "Worker".');
+      assert.deepEqual(closedSurfaces, ["pane-1"]);
+      assert.equal(result.content[0].text, 'Sub-agent "Worker" aborted (interrupted and terminated).');
       assert.deepEqual(result.details, { id: "a1", name: "Worker", status: "interrupt_requested" });
-      const snapshot = classifyStatus(runningMap.get("a1").statusState, 20_000);
+      assert.equal(runningMap.has("a1"), false);
+      // statusState is still accessible on the original running object
+      const snapshot = classifyStatus(running.statusState, 20_000);
       assert.equal(snapshot.kind, "waiting");
       assert.equal(snapshot.activityLabel, "interrupted");
-      assert.equal(runningMap.has("a1"), true);
     } finally {
       runningMap.clear();
     }
   });
 
-  it("sends Escape again for repeated interrupt requests", () => {
+  it("returns an error for repeated interrupt requests after termination", () => {
     const testApi = (subagentsModule as any).__test__;
     const runningMap = testApi.runningSubagents as Map<string, any>;
     const surfaces: string[] = [];
+    const closedSurfaces: string[] = [];
     runningMap.clear();
 
     try {
       runningMap.set("a1", makeRunning());
 
-      testApi.handleSubagentInterrupt({ name: "Worker" }, (surface: string) => {
-        surfaces.push(surface);
-      });
-      testApi.handleSubagentInterrupt({ name: "Worker" }, (surface: string) => {
-        surfaces.push(surface);
-      });
+      const firstResult = testApi.handleSubagentInterrupt(
+        { name: "Worker" },
+        (surface: string) => { surfaces.push(surface); },
+        (surface: string) => { closedSurfaces.push(surface); },
+      );
 
-      assert.deepEqual(surfaces, ["pane-1", "pane-1"]);
-      assert.equal(runningMap.has("a1"), true);
+      assert.deepEqual(surfaces, ["pane-1"]);
+      assert.deepEqual(closedSurfaces, ["pane-1"]);
+      assert.equal(runningMap.has("a1"), false);
+      assert.equal(firstResult.content[0].text, 'Sub-agent "Worker" aborted (interrupted and terminated).');
+
+      // Second call on a now-empty map should return an error
+      const secondResult = testApi.handleSubagentInterrupt(
+        { name: "Worker" },
+        (surface: string) => { surfaces.push(surface); },
+        (surface: string) => { closedSurfaces.push(surface); },
+      );
+
+      assert.deepEqual(surfaces, ["pane-1"]); // no additional Escape sent
+      assert.deepEqual(closedSurfaces, ["pane-1"]); // no additional close
+      assert.ok("error" in secondResult.details);
+      assert.match(secondResult.content[0].text, /No running subagent named/);
     } finally {
       runningMap.clear();
     }

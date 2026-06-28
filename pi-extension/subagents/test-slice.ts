@@ -37,11 +37,15 @@ import {
 function handleSubagentInterrupt(
   params: { id?: string; name?: string },
   sendEscapeKey?: (surface: string) => void,
+  closeSurfaceFn?: (surface: string) => void,
 ) {
-  if (sendEscapeKey) {
-    return interruptHandleSubagentInterrupt(params, runningSubagents, () => updateWidget(null, runningSubagents, false), sendEscapeKey);
-  }
-  return interruptHandleSubagentInterrupt(params, runningSubagents, () => updateWidget(null, runningSubagents, false));
+  return interruptHandleSubagentInterrupt(
+    params,
+    runningSubagents,
+    () => updateWidget(null, runningSubagents, false),
+    sendEscapeKey ?? (() => {}),
+    closeSurfaceFn ?? (() => {}),
+  );
 }
 
 function resolveInterruptTarget(params: { id?: string; name?: string }) {

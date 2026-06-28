@@ -183,20 +183,18 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       name: "subagent_interrupt",
       label: "Interrupt Subagent",
       description:
-        "Send Escape to the active turn of a currently running Pi-backed subagent. " +
-        "The child pane, session, watcher, and running entry remain alive; this returns only a local acknowledgement " +
-        "and does not emit a subagent_result solely because of this request.",
+        "Terminate a running subagent. Sends Escape to cancel the current turn, then aborts the watcher, closes the terminal pane, and cleans up the running entry. " +
+        "The main agent will receive a subagent_result steer message indicating the subagent was cancelled.",
       promptSnippet:
-        "Send Escape to the active turn of a currently running Pi-backed subagent. " +
-        "The child pane, session, watcher, and running entry remain alive; this returns only a local acknowledgement " +
-        "and does not emit a subagent_result solely because of this request.",
+        "Terminate a running subagent. Sends Escape to cancel the current turn, then aborts the watcher, closes the terminal pane, and cleans up the running entry. " +
+        "The main agent will receive a subagent_result steer message indicating the subagent was cancelled.",
       parameters: Type.Object({
         id: Type.Optional(Type.String({ description: "Exact running subagent id" })),
         name: Type.Optional(Type.String({ description: "Exact running subagent display name" })),
       }),
 
       async execute(_toolCallId, params) {
-        return handleSubagentInterrupt(params, runningSubagents, updateWidget);
+        return handleSubagentInterrupt(params, runningSubagents, subagentUpdateWidget);
       },
 
       renderCall(args, theme) {
