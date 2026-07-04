@@ -32,7 +32,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 
 - `index.ts` is the extension entry point — registers tools, commands, message renderers, and widgets with pi
 - All modules import from `./mux.ts` for multiplexer operations — never call tmux/herdr directly
-- `mux-layout.ts` is consumed by `mux.ts:createSurface()` — external callers use `createSurface(name, layout?)` only. Layout can be "tiling" (default) or "bottom-stack". Falls back to config file if not passed explicitly.
+- `mux-layout.ts` and `monocle.ts` are consumed by `mux.ts:createSurface()` — external callers use `createSurface(name, layout?)` only. Layout can be "tiling" (default), "bottom-stack", or "monocle". Falls back to config file if not passed explicitly.
 - `spawner.ts` exports `launchSubagent()` and `watchSubagent()` — lifecycle is: launch → poll for exit → close surface
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
 
