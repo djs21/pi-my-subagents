@@ -9,7 +9,8 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`mux.ts`** — tmux/herdr backend abstraction (createSurface, sendCommand, pollForExit, etc.)
 - **`herdr-mux.ts`** — herdr backend resize functions. Height: herdrResizeStack, herdrGetPaneHeight. Width: herdrResizeWidths, herdrGetPaneWidth.
 - **`tmux-mux.ts`** — tmux backend resize functions. Height: tmuxResizeStack, tmuxGetPaneHeight. Width: tmuxResizeWidths, tmuxGetPaneWidth.
-- **`mux-layout.ts`** — layout engine for subagent panes (createTileSurface, equalizePanes, DEFAULT_SPLIT_RATIO). Supports tiling (DWM-style) and bottom-stack layouts via layoutMode parameter. state: lastSubagentSurface, stackPanes.
+- **`mux-layout.ts`** — layout engine for subagent panes (createTileSurface, equalizePanes, DEFAULT_SPLIT_RATIO). Supports tiling (DWM-style) and bottom-stack layouts via layoutMode parameter. State: lastSubagentSurface, stackPanes.
+- **`monocle.ts`** — monocle layout engine for subagent panes (createMonocleSurface, equalizeMonoclePanes, resetMonocleLayout, getGroupName). First subagent of a type creates a new window; subsequent subagents of same type share that window with equalized heights. State: monocleState Map<string, MonocleGroup>.
 - **`spawner.ts`** — launch + watch lifecycle (launchSubagent, watchSubagent)
 - **`types.ts`** — core type definitions (SubagentParams, RunningSubagent, SubagentResult, etc.)
 - **`status.ts`** — subagent status state machine (starting → active → waiting → stalled)
@@ -38,7 +39,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 ## Work Guidance
 
 - Prefer pure functions with explicit dependencies over module-level state
-- New mux operations go in `mux.ts`, new layout logic goes in `mux-layout.ts`
+- New mux operations go in `mux.ts`, new layout logic goes in `mux-layout.ts` or `monocle.ts` for window-based monocle layout
 - resize backends go in `herdr-mux.ts` and `tmux-mux.ts` — dispatch through closures in `mux.ts:createSurface()`
 - All config/agent resolution goes through `agent.ts` and `config.ts`
 
