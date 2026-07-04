@@ -117,8 +117,11 @@ import {
   resetLayout,
   DEFAULT_SPLIT_RATIO,
 } from "./mux-layout.ts";
-import { herdrResizeStack, herdrGetPaneHeight, herdrResizeWidths, herdrGetPaneWidth } from "./herdr-mux.ts";
-import { tmuxResizeStack, tmuxGetPaneHeight, tmuxResizeWidths, tmuxGetPaneWidth } from "./tmux-mux.ts";
+import {
+  createMonocleSurface,
+} from "./monocle.ts";
+import { herdrResizeStack, herdrGetPaneHeight, herdrResizeWidths, herdrGetPaneWidth, herdrCreateTab, herdrGetTabPanes } from "./herdr-mux.ts";
+import { tmuxResizeStack, tmuxGetPaneHeight, tmuxResizeWidths, tmuxGetPaneWidth, tmuxCreateWindow, tmuxGetWindowPanes, tmuxGetCurrentSession } from "./tmux-mux.ts";
 import { loadSubagentConfig } from "./config.ts";
 import type { LayoutType } from "./types.ts";
 
@@ -140,8 +143,41 @@ export function createSurface(name: string, layout?: LayoutType): string {
   const effectiveLayout = layout ?? loadSubagentConfig(process.cwd())?.layout ?? "tiling";
 
   // Validate layout
-  const validLayouts: LayoutType[] = ["tiling", "bottom-stack"];
+  const validLayouts: LayoutType[] = ["tiling", "bottom-stack", "monocle"];
   const validatedLayout = validLayouts.includes(effectiveLayout) ? effectiveLayout : "tiling";
+
+  if (validatedLayout === "monocle") {
+    // Monocle: create window/tab per agent type
+    const splitFn = (name: string, direction: "left" | "right" | "up" | "down", fromSurface?: string, ratio?: number) =>
+      createSurfaceSplit(name, direction, fromSurface, ratio);
+
+    const createWindowFn = (windowName: string): string => {
+      if (backend === "herdr") {
+        const wsId = process.env.HERDR_WORKSPACE_ID;
+        if (!wsId) throw new Error("HERDR_WORKSPACE_ID not set");
+        return herdrCreateTab(wsId, windowName);
+      }
+      if (backend === "tmux") {
+        const sessionId = tmuxGetCurrentSession();
+        if (!sessionId) throw new Error("Could not determine tmux session");
+        return tmuxCreateWindow(sessionId, windowName);
+      }
+      throw new Error("Unsupported mux backend for monocle layout");
+    };
+
+    const getWindowPanesFn = (windowId: string): string[] => {
+      if (backend === "herdr") return herdrGetTabPanes(windowId);
+      if (backend === "tmux") return tmuxGetWindowPanes(windowId);
+      return [];
+    };
+
+    const getSizeFn = backend === "herdr" ? herdrGetPaneHeight : tmuxGetPaneHeight;
+    const resizeFn = backend === "herdr" ? herdrResizeStack : tmuxResizeStack;
+
+    return createMonocleSurface(
+      name, splitFn, createWindowFn, getWindowPanesFn, getSizeFn, resizeFn,
+    );
+  }
 
   if (validatedLayout === "bottom-stack") {
     const resizeFn = backend === "herdr" ? herdrResizeWidths : tmuxResizeWidths;
