@@ -71,7 +71,7 @@ export function tmuxGetPaneWidth(pane: string): number {
 export function tmuxCreateWindow(sessionId: string, windowName: string): string {
   try {
     const result = execFileSync("tmux", [
-      "new-window", "-t", sessionId,
+      "new-window", "-d", "-t", sessionId,
       "-n", windowName,
       "-P", "-F", "#{window_id}",
     ], { encoding: "utf8" });

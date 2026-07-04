@@ -162,6 +162,7 @@ export function herdrCreateTab(workspaceId: string, tabName: string): string {
       "tab", "create",
       "--workspace", workspaceId,
       "--label", tabName,
+      "--no-focus",
     ], { encoding: "utf8" });
     const data = JSON.parse(raw);
     const rootPaneId = data?.result?.root_pane?.pane_id;
