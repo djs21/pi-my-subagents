@@ -63,3 +63,54 @@ export function tmuxGetPaneWidth(pane: string): number {
     return 0;
   }
 }
+
+/**
+ * Create a new tmux window in a session.
+ * Returns the new window ID.
+ */
+export function tmuxCreateWindow(sessionId: string, windowName: string): string {
+  try {
+    const result = execFileSync("tmux", [
+      "new-window", "-t", sessionId,
+      "-n", windowName,
+      "-P", "-F", "#{window_id}",
+    ], { encoding: "utf8" });
+    return result.trim();
+  } catch {
+    throw new Error(`Failed to create tmux window "${windowName}" in session ${sessionId}`);
+  }
+}
+
+/**
+ * Get all pane IDs within a tmux window.
+ * Returns empty array if window can't be queried.
+ */
+export function tmuxGetWindowPanes(windowId: string): string[] {
+  try {
+    const result = execFileSync("tmux", [
+      "list-panes", "-t", windowId,
+      "-F", "#{pane_id}",
+    ], { encoding: "utf8" });
+    return result.trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get the current tmux session ID.
+ * First tries TMUX_PANE env var, then falls back to display-message.
+ * Returns null if not in a tmux session.
+ */
+export function tmuxGetCurrentSession(): string | null {
+  const tmuxPane = process.env.TMUX_PANE;
+  if (!tmuxPane) return null;
+  try {
+    return execFileSync("tmux", [
+      "display-message", "-p", "-t", tmuxPane,
+      "#{session_id}",
+    ], { encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
