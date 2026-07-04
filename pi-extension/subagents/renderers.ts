@@ -166,7 +166,7 @@ export function subagentStalledRenderer(message: any, _options: any, theme: Them
   if (!details) return undefined;
 
   return {
-    render(_width: number): string[] {
+    render(width: number): string[] {
       const name = details.name ?? "subagent";
       const agentTag = details.agent ? theme.fg("dim", ` (${details.agent})`) : "";
       const elapsed = details.elapsed != null
@@ -178,7 +178,8 @@ export function subagentStalledRenderer(message: any, _options: any, theme: Them
       const text =
         `${theme.fg("error", "!")} ${theme.fg("toolTitle", theme.bold(name))}${agentTag} ${theme.fg("dim", "—")} ${statusLabel} ${theme.fg("dim", `(${elapsed})`)}`;
       const content = typeof message.content === "string" ? message.content : "";
-      return ["", text, content ? theme.fg("dim", content) : ""];
+      const lineWidth = Math.max(0, width - 4);
+      return ["", text, content ? theme.fg("dim", truncateToWidth(content, lineWidth)) : ""];
     },
   };
 }
