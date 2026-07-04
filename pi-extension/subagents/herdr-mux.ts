@@ -153,32 +153,35 @@ export function herdrResizeStack(panes: string[], targetHeight: number): void {
 
 /**
  * Create a new tab in a herdr workspace.
- * Returns the tab ID.
+ * Returns the default (root) pane ID of the new tab.
+ * The pane ID is used with `pane layout --pane` to query sibling panes.
  */
 export function herdrCreateTab(workspaceId: string, tabName: string): string {
   try {
     const raw = execFileSync("herdr", [
       "tab", "create",
       "--workspace", workspaceId,
-      "--name", tabName,
+      "--label", tabName,
     ], { encoding: "utf8" });
     const data = JSON.parse(raw);
-    const tabId = data?.result?.tab?.tab_id;
-    if (!tabId) throw new Error("Failed to parse herdr tab id");
-    return tabId;
+    const rootPaneId = data?.result?.root_pane?.pane_id;
+    if (!rootPaneId) throw new Error("Failed to parse herdr root pane id");
+    return rootPaneId;
   } catch {
     throw new Error(`Failed to create herdr tab "${tabName}" in workspace ${workspaceId}`);
   }
 }
 
 /**
- * Get all pane IDs within a herdr tab.
- * Returns empty array if tab can't be queried.
+ * Get all pane IDs in the same tab as the given pane.
+ * Herdr `pane layout --pane <paneId>` returns the layout for the
+ * entire tab containing that pane, including all sibling panes.
+ * Returns empty array if the tab can't be queried.
  */
-export function herdrGetTabPanes(tabId: string): string[] {
+export function herdrGetTabPanes(paneId: string): string[] {
   try {
     const raw = execFileSync("herdr", [
-      "pane", "layout", "--tab", tabId,
+      "pane", "layout", "--pane", paneId,
     ], { encoding: "utf8" });
     const data = JSON.parse(raw);
     const panes: Array<{ pane_id: string }> = data?.result?.layout?.panes ?? [];
