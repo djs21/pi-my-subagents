@@ -48,7 +48,8 @@ export function resetMonocleLayout(): void {
  * Override this if agent type extraction logic changes later.
  */
 export function getGroupName(name: string): string {
-  return name;
+  // Strip numeric suffix like "-1", "-2" untuk grouping by agent type
+  return name.replace(/-\d+$/, "");
 }
 
 /**
@@ -82,10 +83,17 @@ export function createMonocleSurface(
     // First subagent of this type: create new window
     const windowId = createWindowFn(groupName);
 
-    // Split pane inside the new window (right split, 30%)
-    const paneId = splitFn(name, "right", undefined, DEFAULT_SPLIT_RATIO);
+    // Get the default pane in the new window to split from
+    // (jangan pake undefined — itu fallback ke TMUX_PANE dari window utama!)
+    const windowPanes = getWindowPanesFn(windowId);
+    const fromPane = windowPanes.length > 0 ? windowPanes[0] : undefined;
 
-    monocleState.set(groupName, { windowId, panes: [paneId] });
+    // Split pane inside the new window (right split, 30%)
+    const paneId = splitFn(name, "right", fromPane, DEFAULT_SPLIT_RATIO);
+
+    // Refresh pane list after split
+    const actualPanes = getWindowPanesFn(windowId);
+    monocleState.set(groupName, { windowId, panes: actualPanes });
     return paneId;
   }
 
