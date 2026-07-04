@@ -83,17 +83,13 @@ export function createMonocleSurface(
     // First subagent of this type: create new window
     const windowId = createWindowFn(groupName);
 
-    // Get the default pane in the new window to split from
-    // (jangan pake undefined — itu fallback ke TMUX_PANE dari window utama!)
+    // Gunakan default pane yang dibuat otomatis oleh tmux/herdr sebagai
+    // sub-agent pertama — gak perlu split, langsung fullscreen.
     const windowPanes = getWindowPanesFn(windowId);
-    const fromPane = windowPanes.length > 0 ? windowPanes[0] : undefined;
+    const paneId = windowPanes.length > 0 ? windowPanes[0] : undefined;
+    if (!paneId) throw new Error(`No default pane in new window ${windowId}`);
 
-    // Split pane inside the new window (right split, 30%)
-    const paneId = splitFn(name, "right", fromPane, DEFAULT_SPLIT_RATIO);
-
-    // Refresh pane list after split
-    const actualPanes = getWindowPanesFn(windowId);
-    monocleState.set(groupName, { windowId, panes: actualPanes });
+    monocleState.set(groupName, { windowId, panes: [paneId] });
     return paneId;
   }
 

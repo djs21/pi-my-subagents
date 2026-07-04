@@ -51,8 +51,34 @@ describe("monocle.ts", () => {
     resetMonocleLayout();
   });
 
-  // Test 1: First subagent — create window, split right from its default pane
-  it("first subagent creates a new window and splits right from default pane", () => {
+  // Test 1: First subagent — create window, use default pane directly (no split)
+  it("first subagent uses the window's default pane directly (no split)", () => {
+    windowPanesReturns["win-scout"] = ["pane-scout-default"];
+
+    const result = createMonocleSurface(
+      "scout",
+      mockSplitFn,
+      mockCreateWindowFn,
+      mockGetWindowPanesFn,
+      mockGetSizeFn,
+      mockResizeFn,
+    );
+
+    assert.equal(result, "pane-scout-default");
+    assert.equal(createWindowCalls.length, 1);
+    assert.equal(createWindowCalls[0].windowName, "scout");
+    assert.equal(splitCalls.length, 0); // no split for first subagent!
+    assert.equal(resizeCalls.length, 0);
+  });
+
+  // Test 2: Second subagent same type — split down from last pane, equalize
+  it("second subagent same type splits down from last pane and equalizes", () => {
+    // First subagent: uses default pane directly
+    windowPanesReturns["win-scout"] = ["pane-scout-default"];
+    createMonocleSurface("scout", mockSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
+
+    // Second subagent: split down from default pane
+    sizeReturns["pane-scout-default"] = 600;
     windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1"];
 
     const result = createMonocleSurface(
@@ -66,50 +92,21 @@ describe("monocle.ts", () => {
 
     assert.equal(result, "pane-scout-1");
     assert.equal(createWindowCalls.length, 1);
-    assert.equal(createWindowCalls[0].windowName, "scout");
     assert.equal(splitCalls.length, 1);
-    assert.equal(splitCalls[0].direction, "right");
-    assert.equal(splitCalls[0].ratio, DEFAULT_SPLIT_RATIO);
-    // Split from the window's own default pane, NOT from main window
-    assert.equal(splitCalls[0].from, "pane-scout-default");
-    assert.equal(resizeCalls.length, 0);
-  });
-
-  // Test 2: Second subagent same type — split down from last pane, equalize
-  it("second subagent same type splits down and equalizes", () => {
-    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1"];
-    createMonocleSurface("scout", mockSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
-
-    // Second subagent: split down from group's last pane
-    sizeReturns["pane-scout-1"] = 600;
-    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1", "pane-scout-2"];
-
-    const result = createMonocleSurface(
-      "scout",
-      mockSplitFn,
-      mockCreateWindowFn,
-      mockGetWindowPanesFn,
-      mockGetSizeFn,
-      mockResizeFn,
-    );
-
-    assert.equal(result, "pane-scout-2");
-    assert.equal(createWindowCalls.length, 1); // no new window
-    assert.equal(splitCalls.length, 2);
-    assert.equal(splitCalls[1].direction, "down");
-    assert.equal(splitCalls[1].from, "pane-scout-1"); // from last pane in group
-    assert.equal(splitCalls[1].ratio, undefined);
+    assert.equal(splitCalls[0].direction, "down");
+    assert.equal(splitCalls[0].from, "pane-scout-default"); // split from group's only pane
+    assert.equal(splitCalls[0].ratio, undefined);
     assert.equal(resizeCalls.length, 1);
-    assert.deepEqual(resizeCalls[0].panes, ["pane-scout-default", "pane-scout-1", "pane-scout-2"]);
-    assert.equal(resizeCalls[0].targetSize, 200); // (0 + 600 + 0) / 3
+    assert.deepEqual(resizeCalls[0].panes, ["pane-scout-default", "pane-scout-1"]);
+    assert.equal(resizeCalls[0].targetSize, 300); // (600 + 0) / 2
   });
 
-  // Test 3: Different agent type — separate window
+  // Test 3: Different agent type — separate window with its own default pane
   it("different agent type creates a separate window", () => {
-    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1"];
+    windowPanesReturns["win-scout"] = ["pane-scout-default"];
     createMonocleSurface("scout", mockSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
 
-    windowPanesReturns["win-worker"] = ["pane-worker-default", "pane-worker-2"];
+    windowPanesReturns["win-worker"] = ["pane-worker-default"];
 
     const result = createMonocleSurface(
       "worker",
@@ -120,65 +117,28 @@ describe("monocle.ts", () => {
       mockResizeFn,
     );
 
-    assert.equal(result, "pane-worker-2");
+    assert.equal(result, "pane-worker-default");
     assert.equal(createWindowCalls.length, 2);
     assert.equal(createWindowCalls[0].windowName, "scout");
     assert.equal(createWindowCalls[1].windowName, "worker");
-    assert.equal(splitCalls.length, 2);
-    assert.equal(splitCalls[0].direction, "right");
-    assert.equal(splitCalls[0].from, "pane-scout-default");
-    assert.equal(splitCalls[1].direction, "right");
-    assert.equal(splitCalls[1].from, "pane-worker-default");
+    assert.equal(splitCalls.length, 0); // no splits, both got direct default panes
     assert.equal(resizeCalls.length, 0);
   });
 
-  // Test 4: Three instances same type — all in one window, equalize 4 panes (default + 3 sub)
+  // Test 4: Three instances same type — all in one window, equalize 3 panes
   it("three subagents same type equalizes all panes", () => {
-    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1"];
+    windowPanesReturns["win-scout"] = ["pane-scout-default"];
     createMonocleSurface("scout", mockSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
 
     // Second subagent
-    sizeReturns["pane-scout-1"] = 600;
-    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1", "pane-scout-2"];
+    sizeReturns["pane-scout-default"] = 600;
+    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1"];
     createMonocleSurface("scout", mockSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
 
     // Third subagent
-    sizeReturns["pane-scout-3"] = 200;
-    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1", "pane-scout-2", "pane-scout-3"];
+    sizeReturns["pane-scout-2"] = 200;
+    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1", "pane-scout-2"];
 
-    const result = createMonocleSurface(
-      "scout",
-      mockSplitFn,
-      mockCreateWindowFn,
-      mockGetWindowPanesFn,
-      mockGetSizeFn,
-      mockResizeFn,
-    );
-
-    assert.equal(result, "pane-scout-3");
-    assert.equal(createWindowCalls.length, 1);
-    assert.equal(splitCalls.length, 3);
-    assert.equal(splitCalls[0].from, "pane-scout-default"); // first: from default pane
-    assert.equal(splitCalls[1].direction, "down");          // second: down
-    assert.equal(splitCalls[2].direction, "down");          // third: down
-    assert.equal(splitCalls[0].ratio, DEFAULT_SPLIT_RATIO); // first: 30%
-    assert.equal(splitCalls[1].ratio, undefined);           // subsequent: no ratio
-    assert.equal(splitCalls[2].ratio, undefined);
-    assert.equal(resizeCalls.length, 2); // equalize after 2nd and 3rd
-    assert.deepEqual(resizeCalls[1].panes, ["pane-scout-default", "pane-scout-1", "pane-scout-2", "pane-scout-3"]);
-    assert.equal(resizeCalls[1].targetSize, 200); // (0 + 600 + 0 + 200) / 4
-  });
-
-  // Test 5: resetMonocleLayout — clears state, fresh start creates new window
-  it("resetMonocleLayout clears state and creates fresh windows", () => {
-    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1"];
-    createMonocleSurface("scout", mockSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
-    assert.equal(createWindowCalls.length, 1);
-    assert.equal(splitCalls[0].from, "pane-scout-default");
-
-    resetMonocleLayout();
-
-    windowPanesReturns["win-scout"] = ["pane-scout-default-2", "pane-scout-2"];
     const result = createMonocleSurface(
       "scout",
       mockSplitFn,
@@ -189,10 +149,38 @@ describe("monocle.ts", () => {
     );
 
     assert.equal(result, "pane-scout-2");
-    assert.equal(createWindowCalls.length, 2); // new window after reset
+    assert.equal(createWindowCalls.length, 1);
     assert.equal(splitCalls.length, 2);
+    assert.equal(splitCalls[0].direction, "down");  // 2nd: split down from default
     assert.equal(splitCalls[0].from, "pane-scout-default");
-    assert.equal(splitCalls[1].from, "pane-scout-default-2");
+    assert.equal(splitCalls[1].direction, "down");  // 3rd: split down from scout-1
+    assert.equal(splitCalls[1].from, "pane-scout-1");
+    assert.equal(resizeCalls.length, 2); // equalize after 2nd and 3rd
+    assert.deepEqual(resizeCalls[1].panes, ["pane-scout-default", "pane-scout-1", "pane-scout-2"]);
+    assert.equal(resizeCalls[1].targetSize, 266); // (600 + 0 + 200) / 3
+  });
+
+  // Test 5: resetMonocleLayout — clears state, fresh start creates new window
+  it("resetMonocleLayout clears state and creates fresh windows", () => {
+    windowPanesReturns["win-scout"] = ["pane-scout-default"];
+    createMonocleSurface("scout", mockSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
+    assert.equal(createWindowCalls.length, 1);
+
+    resetMonocleLayout();
+
+    windowPanesReturns["win-scout"] = ["pane-scout-default-2"];
+    const result = createMonocleSurface(
+      "scout",
+      mockSplitFn,
+      mockCreateWindowFn,
+      mockGetWindowPanesFn,
+      mockGetSizeFn,
+      mockResizeFn,
+    );
+
+    assert.equal(result, "pane-scout-default-2"); // fresh default pane
+    assert.equal(createWindowCalls.length, 2);    // new window after reset
+    assert.equal(splitCalls.length, 0);           // no splits either time
     assert.equal(resizeCalls.length, 0);
   });
 
@@ -206,15 +194,17 @@ describe("monocle.ts", () => {
       ratio?: number,
     ): string => {
       callCount++;
-      if (callCount === 2) throw new Error("pane_not_found");
+      if (callCount === 1) throw new Error("pane_not_found"); // fail on first split
       return mockSplitFn(name, direction, fromSurface, ratio);
     };
 
-    windowPanesReturns["win-scout"] = ["pane-scout-default", "pane-scout-1"];
-    createMonocleSurface("scout", failingSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
+    // First subagent: succeeds without calling splitFn (uses default pane directly)
+    windowPanesReturns["win-scout"] = ["pane-scout-default"];
+    createMonocleSurface("scout", mockSplitFn, mockCreateWindowFn, mockGetWindowPanesFn, mockGetSizeFn, mockResizeFn);
 
-    // Retry: new window with new default pane
-    windowPanesReturns["win-scout"] = ["pane-scout-default-2", "pane-scout-2"];
+    // Second subagent: split fails (callCount=1), retries as first agent
+    // Retry creates new window with fresh default pane
+    windowPanesReturns["win-scout"] = ["pane-scout-default-2"];
     const result = createMonocleSurface(
       "scout",
       failingSplitFn,
@@ -224,15 +214,11 @@ describe("monocle.ts", () => {
       mockResizeFn,
     );
 
-    assert.equal(result, "pane-scout-2");
+    assert.equal(result, "pane-scout-default-2"); // retry returns default pane of new window
     assert.equal(createWindowCalls.length, 2);
     assert.equal(createWindowCalls[0].windowName, "scout");
     assert.equal(createWindowCalls[1].windowName, "scout");
-    assert.equal(splitCalls.length, 2);
-    assert.equal(splitCalls[0].from, "pane-scout-default");
-    assert.equal(splitCalls[0].ratio, DEFAULT_SPLIT_RATIO);
-    assert.equal(splitCalls[1].from, "pane-scout-default-2");
-    assert.equal(splitCalls[1].ratio, DEFAULT_SPLIT_RATIO);
+    assert.equal(splitCalls.length, 0); // all splits failed or not called
     assert.equal(resizeCalls.length, 0);
   });
 
