@@ -21,7 +21,7 @@ import { discoverAgentNames, discoverExtensions, discoverSkills, formatModelLabe
 export async function pickConfigCategory(ctx: ExtensionCommandContext): Promise<string | undefined> {
   const choice = await ctx.ui.select("Pilih konfigurasi:", [
     "🤖 Agents — model, extensions, skills per agent",
-    "📐 Layout — tata letak pane (tiling / bottom-stack)",
+    "📐 Layout — tata letak pane (tiling / bottom-stack / monocle)",
     "❌ Batal",
   ]);
   if (!choice || choice === "❌ Batal") return undefined;
@@ -56,7 +56,7 @@ export async function pickField(ctx: ExtensionCommandContext): Promise<string | 
     "🤖 model — Pilih model untuk agent ini",
     "🧩 extensions — Tambah/hapus extension",
     "🛠️ skills — Tambah/hapus skills",
-    "📐 layout — Pilih tata letak pane (tiling / bottom-stack)",
+    "📐 layout — Pilih tata letak pane (tiling / bottom-stack / monocle)",
     "👀 Lihat konfigurasi saat ini",
     "❌ Batal",
   ]);
@@ -403,11 +403,13 @@ export async function editLayout(
   const choice = await ctx.ui.select("Pilih layout pane:", [
     currentLayout === "tiling" ? "✅ tiling — Master di kiri, sub-agent bertumpuk di kanan (current)" : "⬜ tiling — Master di kiri, sub-agent bertumpuk di kanan",
     currentLayout === "bottom-stack" ? "✅ bottom-stack — Master di atas, sub-agent horizontal di bawah (current)" : "⬜ bottom-stack — Master di atas, sub-agent horizontal di bawah",
+    currentLayout === "monocle" ? "✅ monocle — Setiap agent type di window/tab sendiri (current)" : "⬜ monocle — Setiap agent type di window/tab sendiri",
     "❌ Batal",
   ]);
   if (!choice || choice === "❌ Batal") return undefined;
   if (choice.includes("tiling")) return "tiling";
   if (choice.includes("bottom-stack")) return "bottom-stack";
+  if (choice.includes("monocle")) return "monocle";
   return undefined;
 }
 
