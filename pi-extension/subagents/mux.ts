@@ -499,9 +499,18 @@ function interpretExitSidecar(data: any): PollResult {
   }
   return { reason: "done", exitCode: 0 };
 }
+/**
+ * Parse a `.sentinel` sidecar file (written by the bash launch script,
+ * independent of pi — works even when pi crashes in a small pane).
+ */
+export function interpretSentinelFile(path: string): PollResult {
+  const raw = readFileSync(path, "utf8").trim();
+  rmSync(path, { force: true });
+  const exitCode = raw ? parseInt(raw, 10) : 0;
+  return { reason: "sentinel", exitCode: isNaN(exitCode) ? 0 : exitCode };
+}
 
-export const __pollForExitTest__ = { interpretExitSidecar };
-export const __test__ = { interpretExitSidecar };
+export const __pollForExitTest__ = { interpretExitSidecar, interpretSentinelFile };
 
 /**
  * Poll until the subagent exits. Checks for a `.exit` sidecar file first
@@ -532,6 +541,17 @@ export async function pollForExit(
           const data = JSON.parse(readFileSync(exitFile, "utf8"));
           rmSync(exitFile, { force: true });
           return interpretExitSidecar(data);
+        }
+      } catch {}
+    }
+
+    // Fast path 2: check for .sentinel file (written by bash launch script,
+    // independent of pi — works even when pi crashes in a small pane)
+    if (options.sessionFile) {
+      try {
+        const sentinelFile = `${options.sessionFile}.sentinel`;
+        if (existsSync(sentinelFile)) {
+          return interpretSentinelFile(sentinelFile);
         }
       } catch {}
     }
@@ -571,6 +591,13 @@ export async function pollForExit(
             const data = JSON.parse(readFileSync(exitFile, "utf8"));
             rmSync(exitFile, { force: true });
             return interpretExitSidecar(data);
+          }
+        } catch {}
+
+        try {
+          const sFile = `${options.sessionFile}.sentinel`;
+          if (existsSync(sFile)) {
+            return interpretSentinelFile(sFile);
           }
         } catch {}
       }
