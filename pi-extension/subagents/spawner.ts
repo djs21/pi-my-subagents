@@ -223,7 +223,8 @@ export async function launchSubagent(
   const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
   const piCommand = cdPrefix + envPrefix + parts.join(" ");
   const nonce = Math.random().toString(16).slice(2, 10);
-  const command = `echo '__SUBAGENT_DONE_START_${nonce}__'; ${piCommand}; echo '__SUBAGENT_DONE_END_'$?'_${nonce}__'`;
+  const sentinelPath = shellEscape(`${subagentSessionFile}.sentinel`);
+  const command = `echo '__SUBAGENT_DONE_START_${nonce}__'; ${piCommand}; __PI_SENTINEL_EXIT__=$?; echo '__SUBAGENT_DONE_END_'$__PI_SENTINEL_EXIT__'_${nonce}__'; echo "$__PI_SENTINEL_EXIT__" > ${sentinelPath}`;
   const launchScriptName = `${(params.name || "subagent").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "subagent"}-${id}.sh`;
   const launchScriptFile = join(artifactDir, "subagent-scripts", launchScriptName);
   sendLongCommand(surface, command, {
