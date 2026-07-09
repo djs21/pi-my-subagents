@@ -34,14 +34,19 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - All modules import from `./mux.ts` for multiplexer operations — never call tmux/herdr directly
 - `mux-layout.ts` and `monocle.ts` are consumed by `mux.ts:createSurface()` — external callers use `createSurface(name, layout?)` only. Layout can be "tiling" (default), "bottom-stack", or "monocle". Falls back to config file if not passed explicitly.
 - `spawner.ts` exports `launchSubagent()` and `watchSubagent()` — lifecycle is: launch → poll for exit → close surface
+- `spawner.ts` passes `--no-context-files` for `worker` and `visual-tester` (don't need AGENTS.md), and `--no-skills` for all agents without explicit `skill:` frontmatter (reduces ~5k token bloat)
+- `prompt-inject.ts` guards orchestration notice via `PI_SUBAGENT_NAME` — only injects `<!-- subagent-orch-start -->` for the main agent, NOT sub-agents
+- Agent `.md` files use `system-prompt: replace` (was `append`). The agent body IS the complete system prompt — must embed tool definitions and usage guidelines
+- Skills can be added per agent via `skill:` frontmatter in `.md`, or via `agents.<name>.skills` in `subagent-config.json` (project or global). Explicit skills trigger `--no-skills --skill <path>` from `buildAgentResourceArgs()`
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
 
 ## Work Guidance
 
 - Prefer pure functions with explicit dependencies over module-level state
 - New mux operations go in `mux.ts`, new layout logic goes in `mux-layout.ts` or `monocle.ts` for window-based monocle layout
-- resize backends go in `herdr-mux.ts` and `tmux-mux.ts` — dispatch through closures in `mux.ts:createSurface()`
+- Resize backends go in `herdr-mux.ts` and `tmux-mux.ts` — dispatch through closures in `mux.ts:createSurface()`
 - All config/agent resolution goes through `agent.ts` and `config.ts`
+- **Sub-agent prompt minimization**: every sub-agent strips unnecessary layers (pi base prompt via `replace`, project context via `--no-context-files`, skills via `--no-skills`, orchestration via `PI_SUBAGENT_NAME` guard). Only inject what the agent type needs.
 
 ## Verification
 
