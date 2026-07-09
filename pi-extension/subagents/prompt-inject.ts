@@ -16,6 +16,8 @@ export function registerPromptInject(pi: ExtensionAPI): void {
   pi.on("before_agent_start", (event, _ctx) => {
     const agents = discoverAgentDefinitions();
     if (agents.length === 0) return;
+    // Skip injection for sub-agents — only main orchestrator needs this
+    if (process.env.PI_SUBAGENT_NAME) return;
 
     const section = formatAgentSection(agents);
     const { systemPrompt } = event;
