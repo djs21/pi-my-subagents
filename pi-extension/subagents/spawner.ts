@@ -187,6 +187,11 @@ export async function launchSubagent(
     parts.push("--no-context-files");
   }
 
+  // Sub-agents don't need skill definitions unless explicitly requested via frontmatter
+  if (!agentDefs?.skills) {
+    parts.push("--no-skills");
+  }
+
   // Per-agent exclusive extensions & skills
   if (agentDefs) {
     const { buildAgentResourceArgs } = await import("./agent.ts");
