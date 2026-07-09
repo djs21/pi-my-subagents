@@ -62,3 +62,26 @@ The implementation SHALL NOT modify `spawner.ts`, `mux.ts`, or `config.ts`. Thes
 #### Scenario: config.ts unchanged
 - **WHEN** inspecting `config.ts`
 - **THEN** it SHALL have no changes from this change
+
+### Requirement: Workers and visual-testers disable context files
+Sub-agents that only execute tasks without needing codebase context SHALL be spawned with `--no-context-files` flag to strip Layer 3 (AGENTS.md/CLAUDE.md) from their prompt. Scout, planner, and reviewer SHALL retain context files as they need AGENTS.md for codebase mapping.
+
+#### Scenario: Worker spawned with --no-context-files
+- **WHEN** `spawner.ts` launches a sub-agent with agent name `worker`
+- **THEN** it SHALL pass `--no-context-files` flag to the pi CLI
+
+#### Scenario: Visual-tester spawned with --no-context-files
+- **WHEN** `spawner.ts` launches a sub-agent with agent name `visual-tester`
+- **THEN** it SHALL pass `--no-context-files` flag to the pi CLI
+
+#### Scenario: Scout still receives context files
+- **WHEN** `spawner.ts` launches a sub-agent with agent name `scout`, `planner`, or `reviewer`
+- **THEN** it SHALL NOT pass `--no-context-files` flag
+
+### Requirement: spawer.ts updated to support per-agent context-file control
+The `spawner.ts` SHALL be updated to conditionally pass `--no-context-files` based on agent type, overriding the "No changes to spawner" constraint for this specific purpose.
+
+#### Scenario: spawner.ts modified for no-context-files
+- **WHEN** inspecting `spawner.ts`
+- **THEN** it SHALL contain logic to pass `--no-context-files` for `worker` and `visual-tester` agents
+- **THEN** all other agent types SHALL NOT receive the flag

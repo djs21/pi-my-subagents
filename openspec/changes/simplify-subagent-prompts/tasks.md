@@ -27,3 +27,8 @@
 
 - [ ] 6.1 Change `agents/visual-tester.md` frontmatter from `system-prompt: append` to `system-prompt: replace`
 - [ ] 6.2 Embed tool definitions (`read`, `bash`, `write`, `edit`) + usage guidelines in `agents/visual-tester.md` body
+
+## 7. Add --no-context-files for worker and visual-tester in spawner.ts
+
+- [ ] 7.1 Add conditional logic in `spawner.ts` to pass `--no-context-files` flag when agent name is `worker` or `visual-tester`
+- [ ] 7.2 Verify scout, planner, and reviewer still receive context files (no change needed for them)
