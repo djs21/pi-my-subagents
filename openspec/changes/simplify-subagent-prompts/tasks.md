@@ -32,3 +32,9 @@
 
 - [ ] 7.1 Add conditional logic in `spawner.ts` to pass `--no-context-files` flag when agent name is `worker` or `visual-tester`
 - [ ] 7.2 Verify scout, planner, and reviewer still receive context files (no change needed for them)
+
+## 8. Add --no-skills for all sub-agents in spawner.ts
+
+- [ ] 8.1 Add `--no-skills` flag in `spawner.ts` for all sub-agents that don't have explicit `skill`/`skills` in frontmatter
+- [ ] 8.2 Verify agents with explicit skill frontmatter (if any) still receive `--skill` via `buildAgentResourceArgs()`
+- [ ] 8.3 Verify default skills section no longer appears in sub-agent system prompt

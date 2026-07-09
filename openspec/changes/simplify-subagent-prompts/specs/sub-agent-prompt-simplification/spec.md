@@ -85,3 +85,18 @@ The `spawner.ts` SHALL be updated to conditionally pass `--no-context-files` bas
 - **WHEN** inspecting `spawner.ts`
 - **THEN** it SHALL contain logic to pass `--no-context-files` for `worker` and `visual-tester` agents
 - **THEN** all other agent types SHALL NOT receive the flag
+
+### Requirement: Sub-agents disable default skills
+All sub-agents SHALL be spawned with `--no-skills` flag by default, since the pi default skill library (~26 skills) adds ~2500-4000 tokens to the system prompt without relevance to sub-agent tasks. Agents that need specific skills SHALL declare them via `skill` field in frontmatter, which triggers explicit `--no-skills --skill <path>` from `buildAgentResourceArgs()`.
+
+#### Scenario: Worker spawned with --no-skills
+- **WHEN** `spawner.ts` launches a sub-agent with no `skill`/`skills` frontmatter
+- **THEN** it SHALL pass `--no-skills` flag to the pi CLI
+
+#### Scenario: Visual-tester with explicit skill still works
+- **WHEN** `spawner.ts` launches a sub-agent with `skill: chrome-cdp` in frontmatter
+- **THEN** `buildAgentResourceArgs()` SHALL pass `--no-skills --skill chrome-cdp` (explicit skills override the default)
+
+#### Scenario: Agent with no skills defined uses --no-skills
+- **WHEN** any agent (worker, scout, planner, reviewer, visual-tester) has no `skill`/`skills` in its frontmatter
+- **THEN** it SHALL receive `--no-skills` flag to strip the `<available_skills>` section
