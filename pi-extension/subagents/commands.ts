@@ -76,10 +76,6 @@ async function handleSubagentConfigCommand(args: string, ctx: ExtensionCommandCo
     return;
   }
 
-  if (pickedField === "layout") {
-    await editTopLevelLayout(ctx);
-    return;
-  }
 
   await editFieldForAgent(pickedAgent, pickedField, ctx);
 }
@@ -126,8 +122,6 @@ async function editFieldForAgent(agentName: string, field: string, ctx: Extensio
       ctx.ui.notify(`✅ Config untuk "${agentName}" berhasil disimpan!`, "info");
       ctx.ui.notify("ℹ️ Jalankan /reload agar perubahan langsung berlaku", "info");
     }
-  } else if (field === "layout") {
-    await editTopLevelLayout(ctx);
   }
 }
 
@@ -165,7 +159,7 @@ function showHelp(): string {
     "  `/subagent-config <agent>`      — Pilih field untuk agent",
     "  `/subagent-config <agent> <field>` — Langsung edit field",
     "",
-    "**Fields:** model, skills, layout",
+    "**Fields:** model, skills",
     "",
     "**Config locations:**",
     "  Project:  .pi/subagent-config.json",

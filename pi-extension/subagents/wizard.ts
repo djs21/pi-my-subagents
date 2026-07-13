@@ -55,14 +55,12 @@ export async function pickField(ctx: ExtensionCommandContext): Promise<string | 
   const choice = await ctx.ui.select("Pilih field yang ingin diedit:", [
     "🤖 model — Pilih model untuk agent ini",
     "🛠️ skills — Tambah/hapus skills",
-    "📐 layout — Pilih tata letak pane (tiling / bottom-stack / monocle)",
     "👀 Lihat konfigurasi saat ini",
     "❌ Batal",
   ]);
   if (!choice || choice === "❌ Batal") return undefined;
   if (choice.startsWith("🤖")) return "model";
   if (choice.startsWith("🛠️")) return "skills";
-  if (choice.startsWith("📐")) return "layout";
   if (choice.startsWith("👀")) return "show";
   return undefined;
 }
