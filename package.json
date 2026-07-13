@@ -2,7 +2,9 @@
   "name": "pi-my-subagent",
   "version": "1.0.0",
   "description": "Async subagents for pi - spawn, orchestrate, and manage sub-agent sessions in tmux/herdr terminals",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "license": "MIT",
   "author": "",
   "type": "module",
@@ -15,6 +17,11 @@
     "@sinclair/typebox": "*"
   },
   "pi": {
-    "extensions": ["./pi-extension/subagents/index.ts"]
+    "extensions": [
+      "./pi-extension/subagents/index.ts"
+    ]
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

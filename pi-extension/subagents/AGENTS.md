@@ -37,7 +37,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - `spawner.ts` passes `--no-context-files` for `worker` and `visual-tester` (don't need AGENTS.md), and `--no-skills` for all agents without explicit `skill:` frontmatter (reduces ~5k token bloat)
 - `prompt-inject.ts` guards orchestration notice via `PI_SUBAGENT_NAME` — only injects `<!-- subagent-orch-start -->` for the main agent, NOT sub-agents
 - Agent `.md` files use `system-prompt: replace` (was `append`). The agent body IS the complete system prompt — must embed tool definitions and usage guidelines
-- Skills can be added per agent via `skill:` frontmatter in `.md`, or via `agents.<name>.skills` in `subagent-config.json` (project or global). Explicit skills trigger `--no-skills --skill <path>` from `buildAgentResourceArgs()`
+- Skills can be added per agent via `skill:` frontmatter in `.md`, or via `agents.<name>.skills` in `subagent-config.json`. Skills are injected as `/skill:name` prompt args. Custom extensions from frontmatter or config are NOT loaded — only `subagent-done.ts` is injected as the mandatory extension.
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
 
 ## Work Guidance
@@ -46,7 +46,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - New mux operations go in `mux.ts`, new layout logic goes in `mux-layout.ts` or `monocle.ts` for window-based monocle layout
 - Resize backends go in `herdr-mux.ts` and `tmux-mux.ts` — dispatch through closures in `mux.ts:createSurface()`
 - All config/agent resolution goes through `agent.ts` and `config.ts`
-- **Sub-agent prompt minimization**: every sub-agent strips unnecessary layers (pi base prompt via `replace`, project context via `--no-context-files`, skills via `--no-skills`, orchestration via `PI_SUBAGENT_NAME` guard). Only inject what the agent type needs.
+- **Sub-agent prompt minimization**: every sub-agent strips unnecessary layers (pi base prompt via `replace`, project context via `--no-context-files`, skills via `--no-skills`, orchestration via `PI_SUBAGENT_NAME` guard). Custom extensions are disabled — only `subagent-done.ts` is injected.
 
 ## Verification
 

@@ -192,12 +192,14 @@ export async function launchSubagent(
     parts.push("--no-skills");
   }
 
-  // Per-agent exclusive extensions & skills
-  if (agentDefs) {
-    const { buildAgentResourceArgs } = await import("./agent.ts");
-    const resourceArgs = buildAgentResourceArgs(agentDefs, effectiveAgentDir);
-    parts.push(...resourceArgs);
-  }
+  // Per-agent extensions & skills — DISABLED: custom extensions removed to keep sub-agents lean
+  // Extensions are no longer loaded from agent frontmatter or subagent-config.json
+  // Only subagent-done.ts is injected as the mandatory extension below.
+  // if (agentDefs) {
+  //   const { buildAgentResourceArgs } = await import("./agent.ts");
+  //   const resourceArgs = buildAgentResourceArgs(agentDefs, effectiveAgentDir);
+  //   parts.push(...resourceArgs);
+  // }
 
   const envParts: string[] = [];
   if (localAgentDir && existsSync(localAgentDir)) {
