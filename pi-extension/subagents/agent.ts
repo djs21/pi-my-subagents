@@ -254,6 +254,7 @@ export function loadAgentDefaults(agentName: string): AgentDefaults | null {
     if (parsed) {
       const override = getAgentOverride(process.cwd(), agentName);
       if (override?.extensions) parsed.extensions = override.extensions.join(",");
+      if (override?.tools) parsed.tools = override.tools.join(",");
       if (override?.skills) parsed.skills = override.skills.join(",");
       if (override?.model) parsed.model = override.model;
       return parsed;

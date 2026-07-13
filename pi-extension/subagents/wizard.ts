@@ -54,12 +54,14 @@ export async function pickAgent(ctx: ExtensionCommandContext, projectAgentsDir?:
 export async function pickField(ctx: ExtensionCommandContext): Promise<string | undefined> {
   const choice = await ctx.ui.select("Pilih field yang ingin diedit:", [
     "🤖 model — Pilih model untuk agent ini",
+    "🔧 tools — Atur tools yang aktif",
     "🛠️ skills — Tambah/hapus skills",
     "👀 Lihat konfigurasi saat ini",
     "❌ Batal",
   ]);
   if (!choice || choice === "❌ Batal") return undefined;
   if (choice.startsWith("🤖")) return "model";
+  if (choice.startsWith("🔧")) return "tools";
   if (choice.startsWith("🛠️")) return "skills";
   if (choice.startsWith("👀")) return "show";
   return undefined;
@@ -315,6 +317,22 @@ async function pickRemoveSkill(working: Set<string>, installed: SkillOption[], c
   const toRemove = await ctx.ui.select("Pilih skill yang dihapus:", removable);
   if (!toRemove || toRemove === "❌ Batal") return undefined;
   return resolveToValue(toRemove.replace(/^❌ /, ""), installed);
+}
+
+// ─── Tools Editor ────────────────────────────────────────────────
+
+export async function editTools(
+  _agentName: string,
+  currentTools: string[] | undefined,
+  ctx: ExtensionCommandContext,
+): Promise<string[] | undefined> {
+  const current = currentTools?.join(", ") ?? "";
+  const result = await ctx.ui.input(
+    `Tools untuk "${_agentName}" (pisahkan dengan koma):`,
+    current,
+  );
+  if (result === undefined || result?.trim() === "") return undefined;
+  return result.split(",").map((t) => t.trim()).filter(Boolean);
 }
 
 // ─── Shared Helpers ─────────────────────────────────────────────

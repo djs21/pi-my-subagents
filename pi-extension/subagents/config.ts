@@ -5,6 +5,7 @@ import type { LayoutType } from "./types.ts";
 
 export interface AgentResourceOverride {
   extensions?: string[];
+  tools?: string[];
   skills?: string[];
   model?: string;
 }
