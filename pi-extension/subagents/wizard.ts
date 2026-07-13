@@ -1,5 +1,5 @@
 /**
- * Interactive TUI wizards for per-agent config (model, extensions, skills).
+ * Interactive TUI wizards for per-agent config (model, skills).
  * Ported from crew-of-pi config slice. Uses ctx.ui API.
  */
 
@@ -14,13 +14,13 @@ import {
   Spacer,
   Text,
 } from "@earendil-works/pi-tui";
-import { discoverAgentNames, discoverExtensions, discoverSkills, formatModelLabel, validateModel, validatePath, type ExtensionOption, type SkillOption } from "./discovery.ts";
+import { discoverAgentNames, discoverSkills, formatModelLabel, validateModel, type SkillOption } from "./discovery.ts";
 
 // ─── Config Category Picker ─────────────────────────────────────
 
 export async function pickConfigCategory(ctx: ExtensionCommandContext): Promise<string | undefined> {
   const choice = await ctx.ui.select("Pilih konfigurasi:", [
-    "🤖 Agents — model, extensions, skills per agent",
+    "🤖 Agents — model, skills per agent",
     "📐 Layout — tata letak pane (tiling / bottom-stack / monocle)",
     "❌ Batal",
   ]);
@@ -54,7 +54,6 @@ export async function pickAgent(ctx: ExtensionCommandContext, projectAgentsDir?:
 export async function pickField(ctx: ExtensionCommandContext): Promise<string | undefined> {
   const choice = await ctx.ui.select("Pilih field yang ingin diedit:", [
     "🤖 model — Pilih model untuk agent ini",
-    "🧩 extensions — Tambah/hapus extension",
     "🛠️ skills — Tambah/hapus skills",
     "📐 layout — Pilih tata letak pane (tiling / bottom-stack / monocle)",
     "👀 Lihat konfigurasi saat ini",
@@ -62,7 +61,6 @@ export async function pickField(ctx: ExtensionCommandContext): Promise<string | 
   ]);
   if (!choice || choice === "❌ Batal") return undefined;
   if (choice.startsWith("🤖")) return "model";
-  if (choice.startsWith("🧩")) return "extensions";
   if (choice.startsWith("🛠️")) return "skills";
   if (choice.startsWith("📐")) return "layout";
   if (choice.startsWith("👀")) return "show";
@@ -257,70 +255,6 @@ async function askManualModel(ctx: ExtensionCommandContext, currentModel?: strin
   return manual.trim();
 }
 
-// ─── Extensions Editor ──────────────────────────────────────────
-
-export async function editExtensions(
-  _agentName: string,
-  currentExtensions: string[] | undefined,
-  ctx: ExtensionCommandContext,
-): Promise<string[] | undefined> {
-  const working = new Set(currentExtensions ?? []);
-  const installed = discoverExtensions();
-
-  while (true) {
-    const choice = await ctx.ui.select(`Extensions untuk "${_agentName}" (${working.size} aktif):`, buildExtOptions(working, installed));
-    if (!choice || choice === "❌ Batal") return undefined;
-    if (choice === "✅ Selesai — simpan perubahan") break;
-    if (choice.startsWith("🗑️ Hapus extension")) {
-      const toRemove = await pickRemoveExt(working, installed, ctx);
-      if (toRemove) working.delete(toRemove);
-      continue;
-    }
-    if (choice === "📂 Tambah path/folder kustom") {
-      const customPath = await ctx.ui.input("Masukkan path extension (absolute / ~/path / npm:... / git:...):", "");
-      if (!customPath?.trim()) continue;
-      const err = validatePath(customPath.trim());
-      if (err) { ctx.ui.notify(`❌ ${err}`, "error"); continue; }
-      working.add(customPath.trim());
-      continue;
-    }
-    toggleChoice(choice, working, installed);
-  }
-  return Array.from(working);
-}
-
-function buildExtOptions(working: Set<string>, installed: ExtensionOption[]): string[] {
-  const opts: string[] = [];
-  if (working.size > 0) {
-    opts.push("━ Active ─");
-    for (const v of working) {
-      const found = installed.find((i) => i.value === v);
-      opts.push(found ? `✅ ${found.label}` : `✅ ${v} (custom)`);
-    }
-    opts.push("───");
-  }
-  const notAdded = installed.filter((i) => !working.has(i.value));
-  if (notAdded.length > 0) {
-    opts.push("━ Available — pilih untuk tambah ─");
-    for (const ext of notAdded) opts.push(`➕ ${ext.label}`);
-    opts.push("───");
-  }
-  if (working.size > 0) opts.push("🗑️ Hapus extension");
-  opts.push("📂 Tambah path/folder kustom");
-  opts.push("✅ Selesai — simpan perubahan", "❌ Batal");
-  return opts;
-}
-
-async function pickRemoveExt(working: Set<string>, installed: ExtensionOption[], ctx: ExtensionCommandContext): Promise<string | undefined> {
-  const removable = Array.from(working).map((v) => {
-    const found = installed.find((i) => i.value === v);
-    return found ? `❌ ${found.label}` : `❌ ${v} (custom)`;
-  });
-  removable.push("❌ Batal");
-  const toRemove = await ctx.ui.select("Pilih extension yang dihapus:", removable);
-  if (!toRemove || toRemove === "❌ Batal") return undefined;
-  return resolveToValue(toRemove.replace(/^❌ /, ""), installed);
-}
 
 // ─── Skills Editor ──────────────────────────────────────────────
 

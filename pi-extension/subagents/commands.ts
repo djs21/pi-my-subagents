@@ -1,13 +1,13 @@
 /**
  * /subagent-config slash command — interactive config wizard for per-agent
- * model, extensions, and skills.
+ * model and skills.
  *
  * Ported from crew-of-pi config.command.ts.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { LayoutType } from "./types.ts";
-import { pickAgent, pickField, pickScope, pickConfigCategory, editModel, editExtensions, editSkills, editLayout } from "./wizard.ts";
+import { pickAgent, pickField, pickScope, pickConfigCategory, editModel, editSkills, editLayout } from "./wizard.ts";
 import { readSubagentConfig, writeSubagentConfig, getConfigPath, type SubagentConfig } from "./config.ts";
 import { discoverAgentNames } from "./discovery.ts";
 
@@ -113,19 +113,6 @@ async function editFieldForAgent(agentName: string, field: string, ctx: Extensio
       ctx.ui.notify(`✅ Config untuk "${agentName}" berhasil disimpan!`, "info");
       ctx.ui.notify("ℹ️ Jalankan /reload agar perubahan langsung berlaku", "info");
     }
-  } else if (field === "extensions") {
-    const newExtensions = await editExtensions(agentName, currentAgent?.extensions, ctx);
-    if (newExtensions === undefined) return;
-    const scope = await pickScope(ctx);
-    if (!scope) return;
-    const targetConfig = readSubagentConfig(scope, cwd) ?? { agents: {} };
-    if (!targetConfig.agents) targetConfig.agents = {};
-    if (!targetConfig.agents[agentName]) targetConfig.agents[agentName] = {};
-    targetConfig.agents[agentName].extensions = newExtensions.length > 0 ? newExtensions : undefined;
-    if (writeSubagentConfig(targetConfig, scope, cwd)) {
-      ctx.ui.notify(`✅ Config untuk "${agentName}" berhasil disimpan!`, "info");
-      ctx.ui.notify("ℹ️ Jalankan /reload agar perubahan langsung berlaku", "info");
-    }
   } else if (field === "skills") {
     const newSkills = await editSkills(agentName, currentAgent?.skills, ctx);
     if (newSkills === undefined) return;
@@ -178,7 +165,7 @@ function showHelp(): string {
     "  `/subagent-config <agent>`      — Pilih field untuk agent",
     "  `/subagent-config <agent> <field>` — Langsung edit field",
     "",
-    "**Fields:** model, extensions, skills, layout",
+    "**Fields:** model, skills, layout",
     "",
     "**Config locations:**",
     "  Project:  .pi/subagent-config.json",
@@ -224,7 +211,6 @@ function formatScopeConfig(config: SubagentConfig): string {
       [
         `**${name}**`,
         `- model: ${agent.model ?? "(default)"}`,
-        `- extensions: ${agent.extensions?.length ? agent.extensions.join(", ") : "(none)"}`,
         `- skills: ${agent.skills?.length ? agent.skills.join(", ") : "(none)"}`,
       ].join("\n"),
     );
@@ -257,7 +243,6 @@ function formatAgentConfigText(agentName: string): string {
   if (projectAgent) {
     lines.push(`*Project override:*`);
     lines.push(`  model: ${projectAgent.model ?? "-"}`);
-    lines.push(`  extensions: ${projectAgent.extensions?.join(", ") ?? "-"}`);
     lines.push(`  skills: ${projectAgent.skills?.join(", ") ?? "-"}`);
   }
 
@@ -265,7 +250,6 @@ function formatAgentConfigText(agentName: string): string {
     const note = projectAgent ? " *(default when no project override)*" : "";
     lines.push(`*Global${note}:*`);
     lines.push(`  model: ${globalAgent.model ?? "-"}`);
-    lines.push(`  extensions: ${globalAgent.extensions?.join(", ") ?? "-"}`);
     lines.push(`  skills: ${globalAgent.skills?.join(", ") ?? "-"}`);
   }
 
