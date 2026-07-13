@@ -167,3 +167,97 @@ export function validatePath(p: string): string | null {
   }
   return null;
 }
+
+// ─── Tool discovery ───────────────────────────────────────────
+
+export interface ToolOption {
+  label: string;
+  value: string;
+}
+
+/**
+ * Known tools registered by extension packages.
+ * Key = short package name extracted from npm: or git:github repo prefix.
+ *
+ * NOT auto-discovered: tool names are runtime values determined by each
+ * extension source. This map is the authoritative source that must be
+ * maintained as extension APIs evolve.
+ */
+const INSTALLED_TOOLS: Record<string, ToolOption[]> = {
+  "pi-hashline-edit-pro": [
+    { label: "replace (hashline)", value: "replace" },
+    { label: "undo_last_replace (hashline)", value: "undo_last_replace" },
+  ],
+  "pi-lens": [
+    { label: "lens_diagnostics", value: "lens_diagnostics" },
+    { label: "symbol_search", value: "symbol_search" },
+    { label: "module_report", value: "module_report" },
+    { label: "read_symbol", value: "read_symbol" },
+    { label: "read_enclosing", value: "read_enclosing" },
+    { label: "lsp_diagnostics (lens)", value: "lsp_diagnostics" },
+    { label: "ast_grep_search", value: "ast_grep_search" },
+    { label: "ast_grep_replace", value: "ast_grep_replace" },
+    { label: "ast_grep_outline", value: "ast_grep_outline" },
+    { label: "ast_grep_dump", value: "ast_grep_dump" },
+    { label: "lsp_navigation", value: "lsp_navigation" },
+    { label: "pi_lens_activate_tools", value: "pi_lens_activate_tools" },
+  ],
+};
+
+/**
+ * Discover available tools by scanning settings.json for installed pi
+ * packages. Returns core tools (always available) plus tools from
+ * installed extension packages.
+ *
+ * Dynamic per-user: different settings.json = different tool list.
+ */
+export function discoverTools(): ToolOption[] {
+  const CORE: ToolOption[] = [
+    { label: "read", value: "read" },
+    { label: "bash", value: "bash" },
+    { label: "write", value: "write" },
+    { label: "edit", value: "edit" },
+    { label: "replace", value: "replace" },
+    { label: "undo_last_replace", value: "undo_last_replace" },
+    { label: "recall", value: "recall" },
+    { label: "subagent", value: "subagent" },
+    { label: "subagent_interrupt", value: "subagent_interrupt" },
+    { label: "subagents_list", value: "subagents_list" },
+    { label: "subagent_resume", value: "subagent_resume" },
+  ];
+
+  const tools: ToolOption[] = [];
+  const seen = new Set<string>();
+
+  for (const t of CORE) {
+    tools.push(t);
+    seen.add(t.value);
+  }
+
+  // Scan settings.json for installed packages
+  const settingsPath = join(homedir(), ".pi", "agent", "settings.json");
+  try {
+    if (existsSync(settingsPath)) {
+      const raw = readFileSync(settingsPath, "utf-8");
+      const settings = JSON.parse(raw) as { packages?: string[] };
+      if (settings.packages) {
+        for (const pkg of settings.packages) {
+          // Extract package name from npm: or git:github repo prefix
+          const match = pkg.match(/^(?:npm:|git:github\.com\/[^/]+\/)(.+)/);
+          const pkgName = match ? match[1] : pkg;
+          const pkgTools = INSTALLED_TOOLS[pkgName];
+          if (pkgTools) {
+            for (const t of pkgTools) {
+              if (!seen.has(t.value)) {
+                tools.push(t);
+                seen.add(t.value);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch { /* settings.json not readable */ }
+
+  return tools;
+}

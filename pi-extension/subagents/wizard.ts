@@ -14,7 +14,7 @@ import {
   Spacer,
   Text,
 } from "@earendil-works/pi-tui";
-import { discoverAgentNames, discoverSkills, formatModelLabel, validateModel, type SkillOption } from "./discovery.ts";
+import { discoverAgentNames, discoverSkills, discoverTools, formatModelLabel, validateModel, type SkillOption, type ToolOption } from "./discovery.ts";
 
 // ─── Config Category Picker ─────────────────────────────────────
 
@@ -326,13 +326,60 @@ export async function editTools(
   currentTools: string[] | undefined,
   ctx: ExtensionCommandContext,
 ): Promise<string[] | undefined> {
-  const current = currentTools?.join(", ") ?? "";
-  const result = await ctx.ui.input(
-    `Tools untuk "${_agentName}" (pisahkan dengan koma):`,
-    current,
-  );
-  if (result === undefined || result?.trim() === "") return undefined;
-  return result.split(",").map((t) => t.trim()).filter(Boolean);
+  const working = new Set(currentTools ?? []);
+  const available = discoverTools();
+
+  while (true) {
+    const choice = await ctx.ui.select(`Tools untuk "${_agentName}" (${working.size} aktif):`, buildToolOptions(working, available));
+    if (!choice || choice === "❌ Batal") return undefined;
+    if (choice === "✅ Selesai — simpan perubahan") break;
+    if (choice.startsWith("🗑️ Hapus tool")) {
+      const toRemove = await pickRemoveTool(working, available, ctx);
+      if (toRemove) working.delete(toRemove);
+      continue;
+    }
+    if (choice === "✏️ Tool kustom") {
+      const custom = await ctx.ui.input("Nama tool kustom:", "");
+      if (!custom?.trim()) continue;
+      working.add(custom.trim());
+      continue;
+    }
+    toggleChoice(choice, working, available);
+  }
+  return Array.from(working);
+}
+
+function buildToolOptions(working: Set<string>, available: ToolOption[]): string[] {
+  const opts: string[] = [];
+  if (working.size > 0) {
+    opts.push("━ Active ─");
+    for (const v of working) {
+      const found = available.find((i) => i.value === v);
+      opts.push(found ? `✅ ${found.label}` : `✅ ${v} (custom)`);
+    }
+    opts.push("───");
+  }
+  const notAdded = available.filter((i) => !working.has(i.value));
+  if (notAdded.length > 0) {
+    opts.push("━ Available — pilih untuk tambah ─");
+    for (const tool of notAdded) opts.push(`➕ ${tool.label}`);
+    opts.push("───");
+  }
+  if (working.size > 0) opts.push("🗑️ Hapus tool");
+  opts.push("✏️ Tool kustom");
+  opts.push("✅ Selesai — simpan perubahan", "❌ Batal");
+  return opts;
+}
+
+async function pickRemoveTool(working: Set<string>, available: ToolOption[], ctx: ExtensionCommandContext): Promise<string | undefined> {
+  const removable = Array.from(working).map((v) => {
+    const found = available.find((i) => i.value === v);
+    return found ? `❌ ${found.label}` : `❌ ${v} (custom)`;
+  });
+  removable.push("❌ Batal");
+  const toRemove = await ctx.ui.select("Pilih tool yang dihapus:", removable);
+  if (!toRemove || toRemove === "❌ Batal") return undefined;
+  return toRemove.replace(/^❌ /, "");
 }
 
 // ─── Shared Helpers ─────────────────────────────────────────────
