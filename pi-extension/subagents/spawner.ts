@@ -12,6 +12,7 @@ import {
   resolveDenyTools,
   resolveAgentByPrefix,
   resolveSubagentPaths,
+} from "./agent.ts";
 import {
   createSurface,
   renameSurface,
