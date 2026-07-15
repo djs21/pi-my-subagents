@@ -263,6 +263,23 @@ export function loadAgentDefaults(agentName: string): AgentDefaults | null {
   return null;
 }
 
+/**
+ * Find an agent definition whose name is a prefix of the given name.
+ * This allows naming sub-agents like "worker-fix-timer" and having
+ * it automatically resolve to the "worker" agent definition.
+ * Sorts by longest prefix first to prefer most specific match.
+ */
+export function resolveAgentByPrefix(name: string): AgentDefaults | null {
+  const allAgents = discoverAgentDefinitions();
+  const sorted = allAgents
+    .filter((a) => name.startsWith(a.name))
+    .sort((a, b) => b.name.length - a.name.length);
+  if (sorted.length === 0) return null;
+  // Load full defaults for the best match (includes subagent-config.json overrides)
+  return loadAgentDefaults(sorted[0].name);
+}
+
+
 // ─── Utilities ──────────────────────────────────────────────────
 
 export function formatElapsed(seconds: number): string {
@@ -291,9 +308,13 @@ export function getArtifactDir(sessionDir: string, sessionId: string): string {
 
 export function buildSubagentToolAllowlist(effectiveTools?: string): string | null {
   const requested = (effectiveTools ?? "").split(",").map((t) => t.trim()).filter(Boolean);
-  if (requested.length === 0) return null;
   const allow = new Set(requested);
   for (const tool of SUBAGENT_CONTROL_TOOLS) allow.add(tool);
+  // ponytail: when no tools explicitly specified, default to safe minimal set
+  // to prevent leaking parent agent's tools (including subagent spawning tools)
+  if (allow.size === 0) {
+    for (const tool of ["read", "bash"]) allow.add(tool);
+  }
   return [...allow].join(",");
 }
 

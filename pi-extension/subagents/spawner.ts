@@ -10,16 +10,8 @@ import type { RunningSubagent, SubagentResult, AgentDefaults } from "./types.ts"
 import {
   loadAgentDefaults,
   resolveDenyTools,
+  resolveAgentByPrefix,
   resolveSubagentPaths,
-  getDefaultSessionDirFor,
-  resolveEffectiveSessionMode,
-  resolveLaunchBehavior,
-  resolveEffectiveInteractive,
-  getArtifactDir,
-  buildSubagentToolAllowlist,
-  buildPiPromptArgs,
-  getShellReadyDelayMs,
-} from "./agent.ts";
 import {
   createSurface,
   renameSurface,
@@ -71,8 +63,12 @@ export async function launchSubagent(
   const id = Math.random().toString(16).slice(2, 10);
 
   // Auto-resolve agent: explicit params.agent wins (case-any), else try name as fallback
+  // If exact name doesn't match an agent definition, try prefix matching
+  // Final fallback: worker defaults (common case, better than crippled agent)
   const agentName = params.agent ?? params.name;
-  const agentDefs = agentName ? loadAgentDefaults(agentName.toLowerCase()) : null;
+  const agentDefs = agentName
+    ? (loadAgentDefaults(agentName.toLowerCase()) ?? resolveAgentByPrefix(agentName.toLowerCase()) ?? loadAgentDefaults("worker"))
+    : loadAgentDefaults("worker");
   const resolvedAgent = agentDefs?.name ?? params.agent; // track which agent actually resolved
   const effectiveModel = params.model ?? agentDefs?.model;
   const effectiveTools = params.tools ?? agentDefs?.tools;
