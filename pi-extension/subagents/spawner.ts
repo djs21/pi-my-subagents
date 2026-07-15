@@ -12,6 +12,13 @@ import {
   resolveDenyTools,
   resolveAgentByPrefix,
   resolveSubagentPaths,
+  getDefaultSessionDirFor,
+  resolveLaunchBehavior,
+  resolveEffectiveInteractive,
+  getArtifactDir,
+  buildSubagentToolAllowlist,
+  buildPiPromptArgs,
+  getShellReadyDelayMs,
 } from "./agent.ts";
 import {
   createSurface,
