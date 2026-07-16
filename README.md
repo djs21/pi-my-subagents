@@ -84,6 +84,52 @@ Sub-agents can be arranged in the multiplexer using one of three layouts:
 
 Use **monocle** for small screens where each sub-agent needs full focus, **tiling** when you want a simultaneous overview, and **bottom-stack** when the main session should stay maximised.
 
+## Inter-Agent Communication
+
+Sub-agents can receive messages from the orchestrator while they run, using a file-based inbox.
+
+### How It Works
+
+```
+Main agent writes file  →  ~/.local/share/pi/subagents/<id>/incoming/
+                          ↓
+Sub-agent calls check_messages()  →  reads + deletes file  →  returns content
+```
+
+### For the Orchestrator (Main Agent)
+
+Write a file to the sub-agent's `incoming/` directory. The subagent ID is returned when you spawn it.
+
+```bash
+echo "your message" > ~/.local/share/pi/subagents/<subagent-id>/incoming/001-instruction.txt
+```
+
+### For the Sub-Agent
+
+Call `check_messages()` periodically to see if the orchestrator has sent new instructions or feedback. The tool returns all new messages since your last check — each file is deleted after reading so you never process the same message twice.
+
+### One-Shot Timers (optional)
+
+Install [pi-heartbeat](https://github.com/marcfargas/pi-heartbeat) for periodic wake-ups:
+
+```bash
+pi install npm:@marcfargas/pi-heartbeat
+```
+
+Then the main agent can use the `heartbeat` tool to wake itself at intervals and check for sub-agent results:
+
+```
+heartbeat(action: "start", interval_seconds: 30,
+          message: "Check ~/.local/share/pi/subagents/<session_id>/incoming/ for new files")
+```
+
+### Direction Summary
+
+| Direction | Mechanism | Tool |
+|-----------|-----------|------|
+| Main → Sub-agent | File-based inbox | `write` / `bash` |
+| Sub-agent → Self | Read inbox | `check_messages()` |
+| Sub-agent → Main | Sidecar exit file | `caller_ping()` |
 ## Bundled Agents
 
 | Agent             | Role                                                                                     |

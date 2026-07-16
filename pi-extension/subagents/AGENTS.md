@@ -11,7 +11,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`tmux-mux.ts`** — tmux backend resize functions. Height: tmuxResizeStack, tmuxGetPaneHeight. Width: tmuxResizeWidths, tmuxGetPaneWidth.
 - **`mux-layout.ts`** — layout engine for subagent panes (createTileSurface, equalizePanes, DEFAULT_SPLIT_RATIO). Supports tiling (DWM-style) and bottom-stack layouts via layoutMode parameter. State: lastSubagentSurface, stackPanes.
 - **`monocle.ts`** — monocle layout engine for subagent panes (createMonocleSurface, equalizeMonoclePanes, resetMonocleLayout, getGroupName). First subagent of a type creates a new window; subsequent subagents of same type share that window with equalized heights. State: monocleState Map<string, MonocleGroup>.
-- **`spawner.ts`** — launch + watch lifecycle (launchSubagent, watchSubagent)
+- **`spawner.ts`** — launch + watch lifecycle (launchSubagent, watchSubagent) + coord dir creation for incoming messages
 - **`types.ts`** — core type definitions (SubagentParams, RunningSubagent, SubagentResult, etc.)
 - **`status.ts`** — subagent status state machine (starting → active → waiting → stalled)
 - **`activity.ts`** — subagent activity recording
@@ -21,7 +21,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`interrupt.ts`** — interrupt/signal handling for running subagents
 - **`renderers.ts`** — message renderers for result/status/ping/stalled
 - **`subagent.ts`** — tool implementations (subagent, subagent_resume, subagent_interrupt)
-- **`subagent-done.ts`** — subagent completion sidecar handler
+- **`subagent-done.ts`** — subagent completion sidecar handler + inter-agent communication (check_messages tool)
 - **`widget.ts`** — live widget rendering for the TUI
 - **`config.ts`** — per-agent resource override config
 - **`commands.ts`** — pi commands (subagent config)
@@ -40,6 +40,8 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - `prompt-inject.ts` guards orchestration notice via `PI_SUBAGENT_NAME` — only injects `<!-- subagent-orch-start -->` for the main agent, NOT sub-agents
 - Agent `.md` files use `system-prompt: replace` (was `append`). The agent body IS the complete system prompt — must embed tool definitions and usage guidelines
 - Skills can be added per agent via `skill:` frontmatter in `.md`, or via `agents.<name>.skills` in `subagent-config.json`. Skills are injected as `/skill:name` prompt args. Custom extensions from frontmatter or config are NOT loaded — only `subagent-done.ts` is injected as the mandatory extension.
+- `spawner.ts` creates `~/.local/share/pi/subagents/<id>/incoming/` per subagent launch, sets PI_SUBAGENT_COORD_DIR env var
+- `subagent-done.ts` registers `check_messages()` tool that reads & deletes files from coord dir's incoming/ — provides non-blocking orchestrator → sub-agent messaging
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
 
 ## Work Guidance
