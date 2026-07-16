@@ -102,4 +102,4 @@ export const SPAWNING_TOOLS = new Set(["subagent", "subagent_interrupt", "subage
 
 export type LayoutType = "tiling" | "bottom-stack" | "monocle";
 
-export const SUBAGENT_CONTROL_TOOLS = ["caller_ping", "subagent_done"] as const;
+export const SUBAGENT_CONTROL_TOOLS = ["caller_ping", "subagent_done", "check_messages"] as const;

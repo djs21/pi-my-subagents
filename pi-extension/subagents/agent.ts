@@ -312,7 +312,7 @@ export function buildSubagentToolAllowlist(effectiveTools?: string): string | nu
   for (const tool of SUBAGENT_CONTROL_TOOLS) allow.add(tool);
   // ponytail: when no tools explicitly specified, default to safe minimal set
   // to prevent leaking parent agent's tools (including subagent spawning tools)
-  if (allow.size === 0) {
+  if (requested.length === 0) {
     for (const tool of ["read", "bash"]) allow.add(tool);
   }
   return [...allow].join(",");

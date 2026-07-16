@@ -70,6 +70,9 @@ export async function launchSubagent(
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
 
+  // Coordination dir for incoming messages from orchestrator
+  const coordDir = join(process.env.HOME || "/tmp", ".local", "share", "pi", "subagents", id);
+  mkdirSync(join(coordDir, "incoming"), { recursive: true });
   // Auto-resolve agent: explicit params.agent wins (case-any), else try name as fallback
   // If exact name doesn't match an agent definition, try prefix matching
   // Final fallback: worker defaults (common case, better than crippled agent)
@@ -146,8 +149,8 @@ export async function launchSubagent(
   const { inheritsConversationContext } = launchBehavior;
 
   const modeHint = agentDefs?.autoExit
-    ? "Complete your task autonomously. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request."
-    : "Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request.";
+    ? `Complete your task autonomously. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request. Periodically call check_messages() to see if the orchestrator has sent new instructions or ideas.`
+    : `Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request. Periodically call check_messages() to see if the orchestrator has sent new instructions or ideas.`;
   const summaryInstruction = agentDefs?.autoExit
     ? "Your FINAL assistant message should summarize what you accomplished."
     : "Your FINAL assistant message (before calling subagent_done, caller_ping, or before the user exits) should summarize what you accomplished.";
@@ -218,6 +221,7 @@ export async function launchSubagent(
   envParts.push(`PI_SUBAGENT_SESSION=${shellEscape(subagentSessionFile)}`);
   envParts.push(`PI_SUBAGENT_ID=${shellEscape(id)}`);
   envParts.push(`PI_SUBAGENT_ACTIVITY_FILE=${shellEscape(activityFile)}`);
+  envParts.push(`PI_SUBAGENT_COORD_DIR=${shellEscape(coordDir)}`);
   envParts.push(`PI_SUBAGENT_SURFACE=${shellEscape(surface)}`);
   const envPrefix = envParts.join(" ") + " ";
 
