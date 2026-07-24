@@ -32,3 +32,4 @@ test/coverage/
 
 # Git worktrees (parallel sub-agent workers)
 /.worktrees
+.worktrees/
