@@ -35,6 +35,6 @@
 
 ## 8. Add --no-skills for all sub-agents in spawner.ts
 
-- [ ] 8.1 Add `--no-skills` flag in `spawner.ts` for all sub-agents that don't have explicit `skill`/`skills` in frontmatter
-- [ ] 8.2 Verify agents with explicit skill frontmatter (if any) still receive `--skill` via `buildAgentResourceArgs()`
-- [ ] 8.3 Verify default skills section no longer appears in sub-agent system prompt
+- [x] 8.1 Add `--no-skills` flag in `spin.ts` (was `spawner.ts`) — applied unconditionally for ALL sub-agents. Default skills suppressed.
+- [x] 8.2 Not needed — `--skill` CLI flag conflicts with `/skill:` prompt mechanism + pi internal skill resolution from subagent-config.json. Skill loading handled via `buildPiPromptArgs` → `/skill:name` prompt args.
+- [x] 8.3 Default skills section suppressed by unconditional `--no-skills` flag.

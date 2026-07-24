@@ -19,7 +19,6 @@ import {
   resolveSubagentPaths,
   getDefaultSessionDirFor,
   getArtifactDir,
-  buildAgentResourceArgs,
   formatElapsed,
   muxUnavailableResult,
 } from "./agent.ts";
@@ -174,18 +173,12 @@ export async function launchSubagent(
     parts.push("--no-context-files");
   }
 
-  // Sub-agents don't need skill definitions unless explicitly requested via frontmatter
-  if (!agentDefs?.skills) {
-    parts.push("--no-skills");
-  }
+  // Sub-agents don't need skill definitions — default skills suppressed.
+  // Skills are loaded via /skill:name prompt args (buildPiPromptArgs) or pi's internal
+  // skill resolution from subagent-config.json, not via --skill CLI flag.
+  parts.push("--no-skills");
 
-  // Per-agent extensions & skills — DISABLED: custom extensions removed to keep sub-agents lean
-  // Extensions are no longer loaded from agent frontmatter or subagent-config.json
-  // Only subagent-done.ts is injected as the mandatory extension below.
-  // if (agentDefs) {
-  //   const resourceArgs = buildAgentResourceArgs(agentDefs, effectiveAgentDir);
-  //   parts.push(...resourceArgs);
-  // }
+
 
   const envParts: string[] = [];
   if (localAgentDir && existsSync(localAgentDir)) {
