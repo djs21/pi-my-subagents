@@ -61,15 +61,8 @@ import type { RunningSubagent, SubagentResult, AgentDefaults } from "./types.ts"
 import { SPAWNING_TOOLS, SUBAGENT_CONTROL_TOOLS } from "./types.ts";
 import { SubagentParams } from "./types.ts";
 import {
-  resolveDenyTools, parseAgentDefinition, discoverAgentDefinitions,
-  resolveSubagentPaths, getDefaultSessionDirFor,
-  resolveEffectiveSessionMode, resolveLaunchBehavior,
-  resolveEffectiveInteractive, loadAgentDefaults,
-  formatElapsed, getShellReadyDelayMs, muxUnavailableResult,
-  getArtifactDir, buildSubagentToolAllowlist, buildPiPromptArgs,
-  activityLabel, getBundledAgentsDir, getAgentConfigDir,
-  buildAgentResourceArgs,
-  resolveResumeLaunchBehavior,
+  discoverAgentDefinitions,
+  loadAgentDefaults,
 } from "./agent.ts";
 import {
   borderLine,

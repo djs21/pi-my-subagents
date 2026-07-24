@@ -10,15 +10,17 @@ import {
   discoverAgentDefinitions,
   resolveAgentExtensions,
   buildAgentResourceArgs,
-  resolveEffectiveSessionMode,
-  resolveLaunchBehavior,
-  resolveEffectiveInteractive,
+  formatElapsed,
+} from "./agent.ts";
+import {
   buildSubagentToolAllowlist,
   buildPiPromptArgs,
   resolveDenyTools,
-  resolveResumeLaunchBehavior,
-  formatElapsed,
-} from "./agent.ts";
+  resolveLaunchBehavior,
+  resolveEffectiveInteractive,
+  resolveEffectiveSessionMode,
+} from "./enforce.ts";
+import { resolveResumeLaunchBehavior } from "./resume.ts";
 import { runningSubagents } from "./shared.ts";
 import {
   borderLine,
