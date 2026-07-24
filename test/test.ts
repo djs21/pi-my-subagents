@@ -348,6 +348,46 @@ describe("session.ts", () => {
       };
       assert.equal(findLastAssistantMessage([msg] as any[]), null);
     });
+
+    it("falls back to last toolResult text when no assistant text exists", () => {
+      const toolCallMsg = {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "tc-002", name: "write", arguments: "{}" }],
+        },
+      };
+      const usefulResult = {
+        type: "message",
+        message: {
+          role: "toolResult",
+          toolCallId: "tc-002",
+          toolName: "write",
+          content: [{ type: "text", text: "Successfully wrote 9859 bytes to /home/output.md" }],
+        },
+      };
+      const doneCall = {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "tc-003", name: "subagent_done", arguments: "{}" }],
+        },
+      };
+      const doneResult = {
+        type: "message",
+        message: {
+          role: "toolResult",
+          toolCallId: "tc-003",
+          toolName: "subagent_done",
+          content: [{ type: "text", text: "Shutting down subagent session." }],
+        },
+      };
+      const entries = [toolCallMsg, usefulResult, doneCall, doneResult] as any[];
+      assert.equal(
+        findLastAssistantMessage(entries),
+        "Successfully wrote 9859 bytes to /home/output.md",
+      );
+    });
   });
 
   describe("appendBranchSummary", () => {

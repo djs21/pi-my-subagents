@@ -131,8 +131,8 @@ export async function launchSubagent(
     ? `Complete your task autonomously. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request. Periodically call check_messages() to see if the orchestrator has sent new instructions or ideas.`
     : `Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request. Periodically call check_messages() to see if the orchestrator has sent new instructions or ideas.`;
   const summaryInstruction = agentDefs?.autoExit
-    ? "Your FINAL assistant message should summarize what you accomplished."
-    : "Your FINAL assistant message (before calling subagent_done, caller_ping, or before the user exits) should summarize what you accomplished.";
+    ? "IMPORTANT: Before calling subagent_done, your assistant message MUST include a TEXT block that summarizes what you accomplished. Do NOT skip this — the orchestrator uses it as your completion report. A tool call alone (like write or subagent_done) does NOT count as a summary."
+    : "IMPORTANT: Before calling subagent_done, caller_ping, or before the user exits, your assistant message MUST include a TEXT block that summarizes what you accomplished. Do NOT skip this — the orchestrator uses it as your completion report. A tool call alone does NOT count as a summary.";
   const denySet = resolveDenyTools(agentDefs);
   const identity = agentDefs?.body ?? params.systemPrompt ?? null;
   const systemPromptMode = agentDefs?.systemPromptMode;

@@ -126,6 +126,28 @@ export function findLastAssistantMessage(entries: SessionEntry[]): string | null
       return `Subagent error: ${errorMessage.trim()}`;
     }
   }
+
+  // Fallback: scan for toolResult text when no assistant text found.
+  // auto-exit agents often finish via subagent_done tool call without a text summary.
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry.type !== "message") continue;
+    const msg = entry as MessageEntry;
+    if (msg.message.role !== "toolResult") continue;
+
+    // Skip subagent_done's tool result — always says "Shutting down subagent session."
+    if (msg.message.toolName === "subagent_done") continue;
+
+    const texts = msg.message.content
+      .filter(
+        (block) =>
+          block.type === "text" && typeof block.text === "string" && block.text.trim() !== "",
+      )
+      .map((block) => block.text as string);
+
+    if (texts.length > 0 && texts.join("").trim()) return texts.join("\n");
+  }
+
   return null;
 }
 
