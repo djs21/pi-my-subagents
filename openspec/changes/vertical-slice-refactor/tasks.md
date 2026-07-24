@@ -14,28 +14,28 @@
 
 ## 3. Create spin.ts (from spawner.ts + subagent.ts spawn parts)
 
-- [ ] 3.1 Create `pi-extension/subagents/spin.ts` containing `launchSubagent()` (from spawner.ts, refactored to call `surfaceReadiness` from shared.ts and enforcement from enforce.ts), `executeSubagentTool()` (from subagent.ts), `createSubagentTool()` (from subagent.ts), `renderSubagentCall()` (from subagent.ts), and `renderSubagentResult()` (from subagent.ts)
-- [ ] 3.2 Wire imports: spin.ts imports enforcement functions from `./enforce.ts`, surfaceReadiness/watchSubagent from `./shared.ts`, path/loading utils from `./agent.ts`, mux/session/types from their modules
+- [x] 3.1 Create `pi-extension/subagents/spin.ts` containing `launchSubagent()` (from spawner.ts, refactored to call `surfaceReadiness` from shared.ts and enforcement from enforce.ts), `executeSubagentTool()` (from subagent.ts), `createSubagentTool()` (from subagent.ts), `renderSubagentCall()` (from subagent.ts), and `renderSubagentResult()` (from subagent.ts)
+- [x] 3.2 Wire imports: spin.ts imports enforcement functions from `./enforce.ts`, surfaceReadiness/watchSubagent from `./shared.ts`, path/loading utils from `./agent.ts`, mux/session/types from their modules
 
 ## 4. Create resume.ts (from subagent.ts resume parts + enforcement fix)
 
-- [ ] 4.1 Create `pi-extension/subagents/resume.ts` containing `executeSubagentResume()` (from subagent.ts, updated to call enforce.ts for `--tools`, `PI_DENY_TOOLS`, `PI_SUBAGENT_AGENT` — fixing P1), `createSubagentResumeTool()` (from subagent.ts, adding optional `agent` parameter), `renderSubagentResumeCall()` (from subagent.ts), `renderSubagentResumeResult()` (from subagent.ts), and `resolveResumeLaunchBehavior()` (moved from agent.ts)
-- [ ] 4.2 Wire imports: resume.ts imports enforcement functions from `./enforce.ts`, surfaceReadiness/watchSubagent/runningSubagents from `./shared.ts`, loadAgentDefaults/path utils from `./agent.ts`, mux/session/types from their modules
+- [x] 4.1 Create `pi-extension/subagents/resume.ts` containing `executeSubagentResume()` (from subagent.ts, updated to call enforce.ts for `--tools`, `PI_DENY_TOOLS`, `PI_SUBAGENT_AGENT` — fixing P1), `createSubagentResumeTool()` (from subagent.ts, adding optional `agent` parameter), `renderSubagentResumeCall()` (from subagent.ts), `renderSubagentResumeResult()` (from subagent.ts), and `resolveResumeLaunchBehavior()` (moved from agent.ts)
+- [x] 4.2 Wire imports: resume.ts imports enforcement functions from `./enforce.ts`, surfaceReadiness/watchSubagent/runningSubagents from `./shared.ts`, loadAgentDefaults/path utils from `./agent.ts`, mux/session/types from their modules
 
 ## 5. Update agent.ts (remove enforcement exports)
 
-- [ ] 5.1 Remove `buildSubagentToolAllowlist`, `resolveDenyTools`, `buildPiPromptArgs`, `resolveLaunchBehavior`, `resolveEffectiveInteractive`, `resolveEffectiveSessionMode` from agent.ts (they now live in enforce.ts) — keep `buildAgentResourceArgs` in agent.ts (needs mux.ts). Keep all parsing, loading, path, and utility functions.
-- [ ] 5.2 Move `resolveResumeLaunchBehavior` from agent.ts to resume.ts (it's resume-specific)
+- [x] 5.1 Remove `buildSubagentToolAllowlist`, `resolveDenyTools`, `buildPiPromptArgs`, `resolveLaunchBehavior`, `resolveEffectiveInteractive`, `resolveEffectiveSessionMode` from agent.ts (they now live in enforce.ts) — keep `buildAgentResourceArgs` in agent.ts (needs mux.ts). Keep all parsing, loading, path, and utility functions.
+- [x] 5.2 Move `resolveResumeLaunchBehavior` from agent.ts to resume.ts (it's resume-specific)
 
 ## 6. Update index.ts (imports from new modules)
 
-- [ ] 6.1 Replace imports from `./spawner` with imports from `./spin` and `./shared` as needed
-- [ ] 6.2 Replace imports from `./subagent` with imports from `./spin`, `./resume`, and `./shared` as needed
-- [ ] 6.3 Drop dead import `resolveAgentExtensions` from `./agent.ts` in index.ts (unused after split)
+- [x] 6.1 Replace imports from `./spawner` with imports from `./spin` and `./shared` as needed
+- [x] 6.2 Replace imports from `./subagent` with imports from `./spin`, `./resume`, and `./shared` as needed
+- [x] 6.3 Drop dead import `resolveAgentExtensions` from `./agent.ts` in index.ts (unused after split)
 
 ## 7. Update test-slice.ts (imports)
 
-- [ ] 7.1 Replace all imports from `./spawner` and `./subagent` with imports from `./spin`, `./resume`, `./shared`, and `./enforce` matching the new module structure
+- [x] 7.1 Replace all imports from `./spawner` and `./subagent` with imports from `./spin`, `./resume`, `./shared`, and `./enforce` matching the new module structure
 
 ## 8. Delete spawner.ts, subagent.ts
 

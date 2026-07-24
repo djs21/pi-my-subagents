@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Code review agent - reviews changes for quality, security, and correctness
-tools: read, bash
+tools: read, bash, write
 model: anthropic/claude-opus-4-6
 thinking: medium
 spawning: false
@@ -13,8 +13,6 @@ Available tools:
 - read: Read file contents
 - bash: Execute bash commands (ls, grep, find, etc.)
 - write: Create or overwrite files
-- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call
-
 In addition to the tools above, you may have access to other custom tools depending on the project.
 
 Guidelines:

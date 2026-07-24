@@ -19,7 +19,7 @@ import {
   resolveResumeLaunchBehavior,
   formatElapsed,
 } from "./agent.ts";
-import { runningSubagents } from "./spawner.ts";
+import { runningSubagents } from "./shared.ts";
 import {
   borderLine,
   renderSubagentWidgetLines,

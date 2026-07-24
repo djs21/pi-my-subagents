@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import type { AgentDefaults, AgentDefinition, ListedAgentDefinition, SubagentSessionMode } from "./types.ts";
-import { SPAWNING_TOOLS, SUBAGENT_CONTROL_TOOLS } from "./types.ts";
+
 import { getAgentOverride } from "./config.ts";
 import { shellEscape } from "./mux.ts";
 
@@ -24,21 +24,6 @@ export function getAgentConfigDir(): string {
   return process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
 }
 
-// ─── resolveDenyTools ───────────────────────────────────────────
-
-export function resolveDenyTools(agentDefs: AgentDefaults | null): Set<string> {
-  const denied = new Set<string>();
-  if (!agentDefs) return denied;
-  if (agentDefs.spawning === false) {
-    for (const t of SPAWNING_TOOLS) denied.add(t);
-  }
-  if (agentDefs.denyTools) {
-    for (const t of agentDefs.denyTools.split(",").map((s) => s.trim()).filter(Boolean)) {
-      denied.add(t);
-    }
-  }
-  return denied;
-}
 
 // ─── Extension Resolvers ────────────────────────────────────────
 
@@ -210,34 +195,6 @@ export function getDefaultSessionDirFor(cwd: string, agentDir: string): string {
   return sessionDir;
 }
 
-// ─── Session Resolution ─────────────────────────────────────────
-
-export function resolveEffectiveSessionMode(params: { fork?: boolean }, agentDefs: AgentDefaults | null): SubagentSessionMode {
-  if (params.fork) return "fork";
-  return agentDefs?.sessionMode ?? "standalone";
-}
-
-export function resolveLaunchBehavior(params: { fork?: boolean }, agentDefs: AgentDefaults | null): {
-  sessionMode: SubagentSessionMode;
-  seededSessionMode: "lineage-only" | "fork" | null;
-  inheritsConversationContext: boolean;
-  taskDelivery: "direct" | "artifact";
-} {
-  const sessionMode = resolveEffectiveSessionMode(params, agentDefs);
-  const inheritsConversationContext = sessionMode === "fork";
-  return {
-    sessionMode,
-    seededSessionMode: sessionMode === "standalone" ? null : sessionMode,
-    inheritsConversationContext,
-    taskDelivery: inheritsConversationContext ? "direct" : "artifact",
-  };
-}
-
-export function resolveEffectiveInteractive(params: { interactive?: boolean }, agentDefs: AgentDefaults | null): boolean {
-  if (params.interactive != null) return params.interactive;
-  if (agentDefs?.interactive != null) return agentDefs.interactive;
-  return !(agentDefs?.autoExit ?? false);
-}
 
 // ─── loadAgentDefaults ──────────────────────────────────────────
 
@@ -306,31 +263,7 @@ export function getArtifactDir(sessionDir: string, sessionId: string): string {
   return join(sessionDir, "artifacts", sessionId);
 }
 
-export function buildSubagentToolAllowlist(effectiveTools?: string): string | null {
-  const requested = (effectiveTools ?? "").split(",").map((t) => t.trim()).filter(Boolean);
-  const allow = new Set(requested);
-  for (const tool of SUBAGENT_CONTROL_TOOLS) allow.add(tool);
-  // ponytail: when no tools explicitly specified, default to safe minimal set
-  // to prevent leaking parent agent's tools (including subagent spawning tools)
-  if (requested.length === 0) {
-    for (const tool of ["read", "bash"]) allow.add(tool);
-  }
-  return [...allow].join(",");
-}
 
-export function buildPiPromptArgs(params: {
-  effectiveSkills?: string;
-  taskDelivery: "direct" | "artifact";
-  taskArg: string;
-}): string[] {
-  const skillPrompts = (params.effectiveSkills ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((skill) => `/skill:${skill}`);
-  const needsSeparator = params.taskDelivery === "artifact" && skillPrompts.length > 0;
-  return [...(needsSeparator ? [""] : []), ...skillPrompts, params.taskArg];
-}
 
 // ─── Activity Label ─────────────────────────────────────────────
 
@@ -344,7 +277,3 @@ export function activityLabel(activity: SubagentActivityState): string | undefin
   return activity.activeScope;
 }
 
-export function resolveResumeLaunchBehavior(params: { autoExit?: boolean }): { autoExit: boolean; interactive: boolean } {
-  const autoExit = params.autoExit ?? true;
-  return { autoExit, interactive: !autoExit };
-}

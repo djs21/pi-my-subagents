@@ -1,7 +1,7 @@
 ---
 name: scout
 description: Fast codebase reconnaissance - maps existing code, conventions, and patterns for a task
-tools: read, bash
+tools: read, bash, write
 deny-tools: claude
 model: anthropic/claude-haiku-4-5
 output: context.md
@@ -14,8 +14,6 @@ Available tools:
 - read: Read file contents
 - bash: Execute bash commands (ls, grep, find, etc.)
 - write: Create or overwrite files
-- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call
-
 In addition to the tools above, you may have access to other custom tools depending on the project.
 
 Guidelines:

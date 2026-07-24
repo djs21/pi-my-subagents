@@ -55,7 +55,7 @@ import { getAgentOverride } from "./config.ts";
 import { registerSubagentConfigCommand } from "./commands.ts";
 import { registerPromptInject } from "./prompt-inject.ts";
 
-import { launchSubagent, watchSubagent, runningSubagents } from "./spawner.ts";
+import { launchSubagent, createSubagentTool } from "./spin.ts";
 
 import type { RunningSubagent, SubagentResult, AgentDefaults } from "./types.ts";
 import { SPAWNING_TOOLS, SUBAGENT_CONTROL_TOOLS } from "./types.ts";
@@ -68,7 +68,7 @@ import {
   formatElapsed, getShellReadyDelayMs, muxUnavailableResult,
   getArtifactDir, buildSubagentToolAllowlist, buildPiPromptArgs,
   activityLabel, getBundledAgentsDir, getAgentConfigDir,
-  resolveAgentExtensions, buildAgentResourceArgs,
+  buildAgentResourceArgs,
   resolveResumeLaunchBehavior,
 } from "./agent.ts";
 import {
@@ -90,12 +90,8 @@ import {
   subagentPingRenderer,
   subagentStalledRenderer,
 } from "./renderers.ts";
-import {
-  createSubagentTool,
-  createSubagentResumeTool,
-  setLatestCtx,
-  updateWidget as subagentUpdateWidget,
-} from "./subagent.ts";
+import { createSubagentResumeTool } from "./resume.ts";
+import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget } from "./shared.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
