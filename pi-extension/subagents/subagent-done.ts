@@ -9,6 +9,7 @@ import { Type } from "@sinclair/typebox";
 import { writeFileSync, readdirSync, readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createSubagentActivityRecorder } from "./activity.ts";
+import { findLastAssistantMessage } from "./session.ts";
 
 export function shouldMarkUserTookOver(agentStarted: boolean): boolean {
   return agentStarted;
@@ -311,11 +312,30 @@ export default function (pi: ExtensionAPI) {
     label: "Subagent Done",
     description:
       "Call this tool when you have completed your task. " +
-      "It will close this session and return your results to the main session. " +
-      "Your LAST assistant message before calling this becomes the summary returned to the caller.",
+      "IMPORTANT: Your last assistant message MUST contain a TEXT summary of what you accomplished. " +
+      "Do NOT call this tool without a text summary — the orchestrator cannot see tool results.",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       const sessionFile = process.env.PI_SUBAGENT_SESSION;
+      if (sessionFile) {
+        try {
+          const raw = readFileSync(sessionFile, "utf8");
+          const entries = raw
+            .split("\n")
+            .filter((l) => l.trim())
+            .map((l) => JSON.parse(l));
+          const summary = findLastAssistantMessage(entries);
+          if (!summary) {
+            throw new Error(
+              "Your last assistant message must include a TEXT summary before calling subagent_done. " +
+              "Write a text block that summarizes what you accomplished, then call subagent_done again.",
+            );
+          }
+        } catch (e) {
+          // Re-throw the guardrail error; swallow file I/O errors (best-effort)
+          if (e instanceof Error && e.message.includes("must include a TEXT summary")) throw e;
+        }
+      }
       recorder.subagentDone();
       if (sessionFile) {
         writeFileSync(`${sessionFile}.exit`, JSON.stringify({ type: "done" }));
