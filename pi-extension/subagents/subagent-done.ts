@@ -326,14 +326,13 @@ export default function (pi: ExtensionAPI) {
             .map((l) => JSON.parse(l));
           const summary = findLastAssistantMessage(entries);
           if (!summary) {
-            throw new Error(
-              "Your last assistant message must include a TEXT summary before calling subagent_done. " +
-              "Write a text block that summarizes what you accomplished, then call subagent_done again.",
-            );
+            return {
+              content: [{ type: "text", text: "ERROR: You must include a TEXT summary in your last assistant message before calling subagent_done. Write a text block summarizing what you accomplished, then call subagent_done again." }],
+              details: {},
+            };
           }
-        } catch (e) {
-          // Re-throw the guardrail error; swallow file I/O errors (best-effort)
-          if (e instanceof Error && e.message.includes("must include a TEXT summary")) throw e;
+        } catch {
+          // Best-effort: file I/O errors don't block shutdown
         }
       }
       recorder.subagentDone();
