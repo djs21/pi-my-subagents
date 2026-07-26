@@ -87,7 +87,14 @@ export async function launchSubagent(
   const resolvedAgent = agentDefs?.name ?? params.agent; // track which agent actually resolved
   const effectiveModel = params.model ?? agentDefs?.model;
   const effectiveTools = params.tools ?? agentDefs?.tools;
-  const effectiveSkills = params.skills ?? agentDefs?.skills;
+  const mergedSkills = new Set<string>();
+  if (agentDefs?.skills) {
+    for (const s of agentDefs.skills.split(",").map(s => s.trim()).filter(Boolean)) mergedSkills.add(s);
+  }
+  if (params.skills) {
+    for (const s of params.skills.split(",").map(s => s.trim()).filter(Boolean)) mergedSkills.add(s);
+  }
+  const effectiveSkills = mergedSkills.size > 0 ? [...mergedSkills].join(",") : undefined;
   const effectiveThinking = agentDefs?.thinking;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
 
