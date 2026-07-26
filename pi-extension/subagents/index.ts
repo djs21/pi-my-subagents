@@ -54,6 +54,7 @@ import {
 import { getAgentOverride } from "./config.ts";
 import { registerSubagentConfigCommand } from "./commands.ts";
 import { registerPromptInject } from "./prompt-inject.ts";
+import { setupMainAgentGuard } from "./main-agent.ts";
 
 import { launchSubagent, createSubagentTool } from "./spin.ts";
 
@@ -135,6 +136,8 @@ export { __test__ } from "./test-slice.ts";
  * Call watchSubagent() on the returned object to observe completion.
  */
 export default function subagentsExtension(pi: ExtensionAPI) {
+  setupMainAgentGuard(pi);
+
   // Capture the UI context for widget updates
   pi.on("session_start", (_event, ctx) => {
     latestCtx = ctx;
