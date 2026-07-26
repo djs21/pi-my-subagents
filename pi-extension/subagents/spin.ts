@@ -211,10 +211,6 @@ export async function launchSubagent(
     taskArg = `@${artifactPath}`;
   }
 
-  for (const promptArg of buildPiPromptArgs({ effectiveSkills, taskDelivery: launchBehavior.taskDelivery, taskArg })) {
-    parts.push(shellEscape(promptArg));
-  }
-
   // Also handle path-based skills via --skill CLI arg (works with --no-skills)
   if (effectiveSkills) {
     for (const skill of effectiveSkills.split(",").map((s) => s.trim()).filter(Boolean)) {
@@ -237,6 +233,10 @@ export async function launchSubagent(
         }
       }
     }
+  }
+
+  for (const promptArg of buildPiPromptArgs({ effectiveSkills, taskDelivery: launchBehavior.taskDelivery, taskArg })) {
+    parts.push(shellEscape(promptArg));
   }
 
   const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
