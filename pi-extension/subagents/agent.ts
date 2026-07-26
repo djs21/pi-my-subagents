@@ -62,7 +62,7 @@ function scanExtensionDir(dir: string): string[] {
   return results;
 }
 
-function scanSkillDir(dir: string): string[] {
+export function scanSkillDir(dir: string): string[] {
   const results: string[] = [];
   try {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

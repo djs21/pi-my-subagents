@@ -9,8 +9,9 @@
  */
 
 import { dirname, join } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, statSync, readdirSync } from "node:fs";
 import type { RunningSubagent, SubagentResult, SubagentParamsType } from "./types.ts";
 import { SubagentParams } from "./types.ts";
 import {
@@ -21,6 +22,7 @@ import {
   getArtifactDir,
   formatElapsed,
   muxUnavailableResult,
+  scanSkillDir,
 } from "./agent.ts";
 import {
   resolveDenyTools,
@@ -211,6 +213,30 @@ export async function launchSubagent(
 
   for (const promptArg of buildPiPromptArgs({ effectiveSkills, taskDelivery: launchBehavior.taskDelivery, taskArg })) {
     parts.push(shellEscape(promptArg));
+  }
+
+  // Also handle path-based skills via --skill CLI arg (works with --no-skills)
+  if (effectiveSkills) {
+    for (const skill of effectiveSkills.split(",").map((s) => s.trim()).filter(Boolean)) {
+      if (skill.includes("/") || skill.startsWith("~")) {
+        let resolved: string;
+        if (skill.startsWith("/")) resolved = skill;
+        else if (skill.startsWith("~")) resolved = join(homedir(), skill.slice(1));
+        else resolved = join(process.cwd(), skill);
+        try {
+          const stat = statSync(resolved);
+          if (stat.isDirectory()) {
+            for (const s of scanSkillDir(resolved)) {
+              parts.push("--skill", shellEscape(s));
+            }
+          } else {
+            parts.push("--skill", shellEscape(resolved));
+          }
+        } catch {
+          // If path can't be resolved, skip silently (already logged by pi)
+        }
+      }
+    }
   }
 
   const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
