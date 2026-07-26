@@ -66,7 +66,7 @@ function scanSkillDir(dir: string): string[] {
   const results: string[] = [];
   try {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
+      if (!statSync(join(dir, entry.name)).isDirectory()) continue;
       if (existsSync(join(dir, entry.name, "SKILL.md"))) results.push(join(dir, entry.name));
     }
   } catch {}
