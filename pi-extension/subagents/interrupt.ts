@@ -15,6 +15,7 @@ import {
   observeStatus,
   loadStatusConfig,
 } from "./status.ts";
+import type { SubagentStatusKind } from "./status.ts";
 import {
   readSubagentActivityFile,
   type ActivityReadResult,
@@ -150,6 +151,54 @@ export function handleSubagentInterrupt(
   };
 }
 
+// ─── Continuous stall tracking ────────────────────────────────────
+
+/**
+ * Pure function: given current stall tracking state and classified status entries,
+ * return new tracking state and list of ids to clean up.
+ * Interactive entries never appear in toCleanup.
+ */
+export function updateStallTracking(
+  trackedStalls: Map<string, number>,
+  now: number,
+  thresholdMs: number,
+  entries: { id: string; kind: SubagentStatusKind; interactive: boolean }[],
+): { stallStarts: Map<string, number>; toCleanup: string[] } {
+  const stallStarts = new Map(trackedStalls);
+  const toCleanup: string[] = [];
+
+  for (const entry of entries) {
+    if (entry.kind !== "stalled") {
+      // Recovered or never stalled — reset tracking
+      stallStarts.delete(entry.id);
+      continue;
+    }
+
+    // Entry is stalled
+    if (!stallStarts.has(entry.id)) {
+      // First tick seeing this stall — record start time
+      stallStarts.set(entry.id, now);
+    } else if (!entry.interactive) {
+      // Already tracked — check if threshold exceeded
+      const startMs = stallStarts.get(entry.id)!;
+      if (now - startMs > thresholdMs) {
+        toCleanup.push(entry.id);
+        stallStarts.delete(entry.id);
+      }
+    }
+  }
+
+  return { stallStarts, toCleanup };
+}
+
+function getAutoCleanupThresholdMs(): number {
+  const raw = process.env.PI_SUBAGENT_AUTO_CLEANUP_MS?.trim();
+  if (raw === undefined || raw === "") return 300_000;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return parsed;
+}
+
 // ─── Status refresh loop ────────────────────────────────────────
 
 let statusInterval: ReturnType<typeof setInterval> | null = null;
@@ -172,6 +221,10 @@ export function startStatusRefresh(
   onUpdateWidget: () => void,
 ) {
   if (!statusConfig.enabled || statusInterval) return;
+
+  // Track continuous stall start time per subagent id (local to this closure)
+  const stallTrackedStarts = new Map<string, number>();
+  const autoCleanupThresholdMs = getAutoCleanupThresholdMs();
 
   statusInterval = setInterval(() => {
     if (runningSubagents.size === 0) {
@@ -211,6 +264,69 @@ export function startStatusRefresh(
             elapsed: Math.floor((now - running.startTime) / 1000),
           });
         }
+      }
+    }
+
+    // ── Continuous stall tracking & auto-cleanup ──
+    if (autoCleanupThresholdMs > 0) {
+      const entries = Array.from(runningSubagents.values()).map((r) => ({
+        id: r.id,
+        kind: r.statusState.currentKind,
+        interactive: r.interactive,
+      }));
+      const { stallStarts, toCleanup } = updateStallTracking(
+        stallTrackedStarts,
+        now,
+        autoCleanupThresholdMs,
+        entries,
+      );
+      // Capture durations BEFORE syncing (updateStallTracking removes cleaned entries)
+      const cleanupDurations = new Map<string, number>();
+      for (const id of toCleanup) {
+        const startMs = stallTrackedStarts.get(id);
+        if (startMs !== undefined) {
+          cleanupDurations.set(id, now - startMs);
+        }
+      }
+
+      // Sync the tracking map
+      stallTrackedStarts.clear();
+      for (const [id, startMs] of stallStarts) {
+        stallTrackedStarts.set(id, startMs);
+      }
+
+      for (const id of toCleanup) {
+        // Race guard: skip if already removed by manual interrupt
+        const running = runningSubagents.get(id);
+        if (!running) continue;
+
+        const stallDurationMs = cleanupDurations.get(id) ?? 0;
+        try {
+          running.abortController?.abort();
+          closeSurface(running.surface);
+        } finally {
+          runningSubagents.delete(id);
+          stallTrackedStarts.delete(id);
+        }
+
+        pi.sendMessage(
+          {
+            customType: "subagent_stalled",
+            content: `Subagent "${running.name}" auto-cleaned after ${Math.floor(stallDurationMs / 1000)}s stalled. Task: ${running.task}`,
+            display: true,
+            details: {
+              id: running.id,
+              name: running.name,
+              task: running.task,
+              agent: running.agent,
+              sessionFile: running.sessionFile,
+              elapsed: Math.floor((now - running.startTime) / 1000),
+              cleaned: true,
+              stallDurationMs,
+            },
+          },
+          { triggerTurn: true, deliverAs: "steer" },
+        );
       }
     }
 

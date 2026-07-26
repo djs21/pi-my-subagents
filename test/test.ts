@@ -6,6 +6,7 @@ import { tmpdir, homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import * as subagentsModule from "../pi-extension/subagents/index.ts";
+import { updateStallTracking } from "../pi-extension/subagents/interrupt.ts";
 
 import {
   getLeafId,
@@ -2344,5 +2345,93 @@ describe("mux-layout.ts equalize stack", () => {
     assert.equal(splitCalls.length, 1);
     assert.equal(splitCalls[0].direction, "right");
     assert.equal(resizeCalls.length, 0);
+  });
+});
+
+describe("updateStallTracking", () => {
+  const thresholdMs = 10000;
+
+  it("resets tracking for non-stalled entries", () => {
+    const tracked = new Map([["a", 1000]]);
+    const { stallStarts, toCleanup } = updateStallTracking(tracked, 2000, thresholdMs, [
+      { id: "a", kind: "active" as const, interactive: false },
+    ]);
+    assert.equal(stallStarts.has("a"), false);
+    assert.deepEqual(toCleanup, []);
+  });
+
+  it("records stall start on first detection", () => {
+    const { stallStarts, toCleanup } = updateStallTracking(new Map(), 5000, thresholdMs, [
+      { id: "b", kind: "stalled" as const, interactive: false },
+    ]);
+    assert.equal(stallStarts.get("b"), 5000);
+    assert.deepEqual(toCleanup, []);
+  });
+
+  it("flags cleanup when stall exceeds threshold", () => {
+    const tracked = new Map([["c", 1000]]);
+    const { stallStarts, toCleanup } = updateStallTracking(tracked, 12000, thresholdMs, [
+      { id: "c", kind: "stalled" as const, interactive: false },
+    ]);
+    assert.equal(stallStarts.has("c"), false, "removed from tracking after cleanup");
+    assert.deepEqual(toCleanup, ["c"]);
+  });
+
+  it("keeps tracking when stall under threshold", () => {
+    const tracked = new Map([["d", 1000]]);
+    const { stallStarts, toCleanup } = updateStallTracking(tracked, 8000, thresholdMs, [
+      { id: "d", kind: "stalled" as const, interactive: false },
+    ]);
+    assert.equal(stallStarts.get("d"), 1000);
+    assert.deepEqual(toCleanup, []);
+  });
+
+  it("never cleans up interactive stalled entries", () => {
+    const tracked = new Map([["e", 1000]]);
+    const { stallStarts, toCleanup } = updateStallTracking(tracked, 12000, thresholdMs, [
+      { id: "e", kind: "stalled" as const, interactive: true },
+    ]);
+    assert.equal(stallStarts.get("e"), 1000, "still tracked");
+    assert.deepEqual(toCleanup, []);
+  });
+
+  it("records start for interactive stalled too", () => {
+    const { stallStarts } = updateStallTracking(new Map(), 5000, thresholdMs, [
+      { id: "f", kind: "stalled" as const, interactive: true },
+    ]);
+    assert.equal(stallStarts.get("f"), 5000);
+  });
+
+  it("handles multiple entries mixed stalled and recovered", () => {
+    const tracked = new Map([
+      ["stalled-a", 5000],
+      ["stalled-b", 5000],
+      ["recovered-c", 1000],
+    ]);
+    // now=10000, threshold=10000 => stalled-a/b: 10000-5000=5000 < 10000 => still tracked
+    const { stallStarts, toCleanup } = updateStallTracking(tracked, 10000, thresholdMs, [
+      { id: "stalled-a", kind: "stalled" as const, interactive: false },
+      { id: "stalled-b", kind: "stalled" as const, interactive: false },
+      { id: "recovered-c", kind: "active" as const, interactive: false },
+    ]);
+    assert.equal(stallStarts.has("recovered-c"), false, "recovered removed");
+    assert.equal(stallStarts.get("stalled-a"), 5000, "stalled-a still tracked");
+    assert.equal(stallStarts.get("stalled-b"), 5000, "stalled-b still tracked");
+    assert.deepEqual(toCleanup, [], "no cleanup yet");
+    // Advance time past threshold for both: now=20000, 20000-5000=15000 > 10000
+    const { toCleanup: cleanup2 } = updateStallTracking(stallStarts, 20000, thresholdMs, [
+      { id: "stalled-a", kind: "stalled" as const, interactive: false },
+      { id: "stalled-b", kind: "stalled" as const, interactive: false },
+    ]);
+    assert.deepEqual(cleanup2.sort(), ["stalled-a", "stalled-b"]);
+  });
+
+  it("does not mutate the input map", () => {
+    const tracked = new Map([["x", 1000]]);
+    const cloned = new Map(tracked);
+    updateStallTracking(tracked, 12000, thresholdMs, [
+      { id: "x", kind: "stalled" as const, interactive: false },
+    ]);
+    assert.deepEqual(tracked, cloned, "original map unchanged");
   });
 });

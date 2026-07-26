@@ -41,6 +41,7 @@ import {
   createStatusState,
   forceStatusAfterInterrupt,
   formatStatusAggregate,
+  formatStatusLine,
   formatTransitionLine,
   observeStatus,
   loadStatusConfig,
@@ -272,8 +273,80 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         return new Text(lines.join("\n"), 0, 0);
       },
     });
+  // ── subagent_status tool ──
+  if (shouldRegister("subagent_status"))
+    pi.registerTool({
+      name: "subagent_status",
+      label: "Subagent Status",
+      description:
+        "Show status of running subagents. " +
+        "Optionally filter by id or name. Returns current status snapshot for each running subagent.",
+      promptSnippet:
+        "Show status of running subagents. " +
+        "Optionally filter by id or name. Returns current status snapshot for each running subagent.",
+      parameters: Type.Object({
+        id: Type.Optional(Type.String({ description: "Exact running subagent id" })),
+        name: Type.Optional(Type.String({ description: "Exact running subagent display name" })),
+      }),
 
+      async execute(_toolCallId, params) {
+        const { id, name } = params ?? {};
+        let entries = Array.from(runningSubagents.entries());
 
+        if (id) {
+          const entry = runningSubagents.get(id.trim());
+          entries = entry ? [[id.trim(), entry] as const] : [];
+        } else if (name) {
+          entries = entries.filter(([, r]) => r.name === name.trim());
+        }
+
+        if (entries.length === 0) {
+          return {
+            content: [{ type: "text", text: "No running subagents found." }],
+            details: { agents: [] },
+          };
+        }
+
+        const now = Date.now();
+        const lines = entries.map(([id, running]) => {
+          const snapshot = classifyStatus(running.statusState, now);
+          return formatStatusLine(running.name, snapshot);
+        });
+
+        return {
+          content: [{ type: "text", text: lines.join("\n") }],
+          details: {
+            agents: entries.map(([id, running]) => ({
+              id,
+              name: running.name,
+              task: running.task,
+              agent: running.agent,
+              elapsed: Math.floor((now - running.startTime) / 1000),
+              ...classifyStatus(running.statusState, now),
+            })),
+          },
+        };
+      },
+
+      renderResult(result, _opts, theme) {
+        const details = result.details as any;
+        const agents = details?.agents ?? [];
+        if (agents.length === 0) {
+          return new Text(theme.fg("dim", "No running subagents."), 0, 0);
+        }
+        const items = agents.map((a: any) => {
+          const nameTag = theme.fg("toolTitle", theme.bold(a.name ?? a.id ?? "?"));
+          const kindTag = theme.fg("accent", a.kind ?? "?");
+          const elapsed = a.elapsed != null
+            ? (a.elapsed >= 60
+              ? `${Math.floor(a.elapsed / 60)}m ${a.elapsed % 60}s`
+              : `${a.elapsed}s`)
+            : "?";
+          return `  ${nameTag} ${theme.fg("dim", "—")} ${kindTag} ${theme.fg("dim", `(${elapsed})`)}`;
+        });
+        return new Text(items.join("\n"), 0, 0);
+      },
+    });
 
   // ── subagent_resume tool ──
   if (shouldRegister("subagent_resume")) pi.registerTool(createSubagentResumeTool(pi));
