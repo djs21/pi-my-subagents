@@ -12,7 +12,7 @@ import type { SubagentStatusState } from "./status.ts";
 export const SubagentParams = Type.Object({
   name: Type.String({ description: "Display name for the subagent" }),
   task: Type.String({ description: "Task/prompt for the sub-agent" }),
-  agent: Type.Optional(Type.String({ description: "Agent name to load defaults from (e.g. 'worker', 'scout', 'reviewer'). Reads ~/.pi/agent/agents/<name>.md for model, tools, skills." })),
+  agent: Type.Optional(Type.String({ description: "Agent name to load defaults from (e.g. 'worker', 'reviewer'). Reads ~/.pi/agent/agents/<name>.md for model, tools, skills." })),
   systemPrompt: Type.Optional(Type.String({ description: "Appended to system prompt (role instructions)" })),
   model: Type.Optional(Type.String({ description: "Model override (overrides agent default)" })),
   skills: Type.Optional(Type.String({ description: "Comma-separated skills (overrides agent default)" })),

@@ -36,7 +36,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - All modules import from `./mux.ts` for multiplexer operations — never call tmux/herdr directly
 - `mux-layout.ts` and `monocle.ts` are consumed by `mux.ts:createSurface()` — external callers use `createSurface(name, layout?)` only. Layout can be "tiling" (default), "bottom-stack", or "monocle". Falls back to config file if not passed explicitly.
 - `spawner.ts` exports `launchSubagent()` and `watchSubagent()` — lifecycle is: launch → poll for exit → close surface
-- `spawner.ts` passes `--no-context-files` for `worker` and `visual-tester` (don't need AGENTS.md), and `--no-skills` for all agents without explicit `skill:` frontmatter (reduces ~5k token bloat)
+- `spawner.ts` passes `--no-context-files` for `worker` (doesn't need AGENTS.md), and `--no-skills` for all agents without explicit `skill:` frontmatter (reduces ~5k token bloat)
 - **Agent sanitasi**: when `params.agent` is not passed explicitly, `spin.ts` first tries exact name match against agent definitions, then falls back to **prefix matching** — e.g. name "worker-fix-timer" resolves to "worker" agent defaults (tools, model, skills, mode). Implemented via `agent.ts:resolveAgentByPrefix()`.
 - **Fallback ke worker**: ketika exact match AND prefix match gagal, sub-agent mendapat agent defaults `worker` utuh (tools: read,bash,write,edit, model: claude-sonnet-4-6, auto-exit, worker system prompt). Safety net `read,bash` di `buildSubagentToolAllowlist()` tetap ada untuk path lain yang tidak lewat spin.ts.
 - `prompt-inject.ts` guards orchestration notice via `PI_SUBAGENT_NAME` — only injects `<!-- subagent-orch-start -->` for the main agent, NOT sub-agents

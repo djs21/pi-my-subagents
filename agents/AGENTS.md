@@ -8,11 +8,8 @@ Bundled agent definitions for the pi-my-subagent extension. Each `.md` file defi
 
 | Agent | File | Role |
 |-------|------|------|
-| **planner** | `planner.md` | Brainstorming — clarifies requirements, explores approaches, writes plans, creates todos |
-| **scout** | `scout.md` | Fast codebase reconnaissance — maps files, patterns, conventions |
 | **worker** | `worker.md` | Implements tasks from todos — writes code, runs tests, makes polished commits |
 | **reviewer** | `reviewer.md` | Reviews code for bugs, security issues, correctness |
-| **visual-tester** | `visual-tester.md` | Visual QA via Chrome CDP — screenshots, responsive testing, interaction testing |
 
 ## Local Contracts
 

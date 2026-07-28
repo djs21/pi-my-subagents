@@ -233,7 +233,7 @@ export function createSubagentResumeTool(pi: ExtensionAPI) {
       name: Type.Optional(Type.String({ description: "Display name for the terminal tab. Default: 'Resolve'" })),
       message: Type.Optional(Type.String({ description: "Optional message to send after resuming (e.g. follow-up instructions)" })),
       autoExit: Type.Optional(Type.Boolean({ description: "Whether the resumed session should automatically exit after completing its response. Defaults to true for autonomous follow-up work; set false for interactive resumed sessions." })),
-      agent: Type.Optional(Type.String({ description: "Agent name to load defaults from (e.g. 'worker', 'scout', 'reviewer'). Reads agent definition for tool enforcement." })),
+      agent: Type.Optional(Type.String({ description: "Agent name to load defaults from (e.g. 'worker', 'reviewer'). Reads agent definition for tool enforcement." })),
     }),
     execute: (id: string, params: any, signal: AbortSignal, onUpdate: any, ctx: any) =>
       executeSubagentResume(id, params, signal, onUpdate, ctx, pi),

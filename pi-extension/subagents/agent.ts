@@ -165,6 +165,7 @@ export function discoverAgentDefinitions(): ListedAgentDefinition[] {
       if (override) {
         if (override.model) parsed.model = override.model;
         if (override.extensions) parsed.extensions = override.extensions.join(",");
+        if (override.tools) parsed.tools = override.tools.join(",");
         if (override.skills) parsed.skills = override.skills.join(",");
       }
       agents.set(parsed.name, { ...parsed, source });

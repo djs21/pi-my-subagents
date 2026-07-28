@@ -1,7 +1,7 @@
 /**
  * Monocle layout for subagent panes.
  *
- * First subagent of a type → new window/tab named after the agent type (e.g. "scout").
+ * First subagent of a type → new window/tab named after the agent type (e.g. "worker").
  * Subsequent subagents of the same type → new pane inside that window (equalized heights).
  * Different agent type → different window/tab.
  */

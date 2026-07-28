@@ -51,7 +51,7 @@ Multiple subagents run concurrently — each steers its result back independentl
 
 ```typescript
 // Named agent with defaults from agent definition
-subagent({ name: "Scout", agent: "scout", task: "Analyze the codebase..." });
+subagent({ name: "Worker", agent: "worker", task: "Investigate and fix..." });
 
 // Force a full-context fork for this spawn
 subagent({ name: "Iterate", fork: true, task: "Fix the bug where..." });
@@ -60,17 +60,6 @@ subagent({ name: "Iterate", fork: true, task: "Fix the bug where..." });
 subagent({ name: "Designer", agent: "game-designer", cwd: "agents/game-designer", task: "..." });
 ```
 
-## The `/plan` Workflow
-
-The `/plan` command orchestrates a full planning-to-implementation pipeline.
-
-```
-Phase 1: Investigation    → Quick codebase scan
-Phase 2: Planning         → Interactive planner subagent (user collaborates)
-Phase 3: Review Plan      → Confirm todos, adjust if needed
-Phase 4: Execute          → Scout + sequential workers implement todos
-Phase 5: Review           → Reviewer subagent checks all changes
-```
 
 ## Layouts
 
@@ -132,13 +121,10 @@ heartbeat(action: "start", interval_seconds: 30,
 | Sub-agent → Main | Sidecar exit file | `caller_ping()` |
 ## Bundled Agents
 
-| Agent             | Role                                                                                     |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| **planner**       | Brainstorming — clarifies requirements, explores approaches, writes plans, creates todos |
-| **scout**         | Fast codebase reconnaissance — maps files, patterns, conventions                         |
-| **worker**        | Implements tasks from todos — writes code, runs tests, makes polished commits            |
-| **reviewer**      | Reviews code for bugs, security issues, correctness                                      |
-| **visual-tester** | Visual QA via Chrome CDP — screenshots, responsive testing, interaction testing          |
+| Agent        | Role                                                                          |
+| ------------ | ----------------------------------------------------------------------------- |
+| **worker**   | Implements tasks from todos — writes code, runs tests, makes polished commits |
+| **reviewer** | Reviews code for bugs, security issues, correctness                           |
 
 ## License
 

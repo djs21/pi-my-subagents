@@ -176,9 +176,9 @@ export async function launchSubagent(
   const toolAllowlist = buildSubagentToolAllowlist(effectiveTools);
   if (toolAllowlist) parts.push("--tools", shellEscape(toolAllowlist));
 
-  // Worker and visual-tester don't need project context files (AGENTS.md, CLAUDE.md)
-  // Scout, planner, and reviewer need AGENTS.md for codebase mapping
-  if (agentDefs?.name === "worker" || agentDefs?.name === "visual-tester") {
+  // Worker doesn't need project context files (AGENTS.md, CLAUDE.md)
+  // Reviewer needs AGENTS.md for codebase mapping
+  if (agentDefs?.name === "worker") {
     parts.push("--no-context-files");
   }
 

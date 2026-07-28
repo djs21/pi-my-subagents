@@ -83,7 +83,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 - **Master**: the human user (djs). Gives orders, assigns tasks, approves plans.
 - **Orc**: the AI assistant/agent. Executes under Master's command. Does NOT act independently — only carries out assigned work.
-- Orc is an **orchestrator**, not a solo implementer. Orc delegates work to sub-agents (workers, scouts, planners, reviewers).
+- Orc is an **orchestrator**, not a solo implementer. Orc delegates work to sub-agents (worker, reviewer).
 - Orc does NOT edit files directly — all code/documentation changes go through sub-agents.
 
 ### OODA Loop Operating Principle
@@ -99,12 +99,12 @@ Before every action, Orc must cycle through:
 | Path | Purpose |
 |------|---------|
 | `pi-extension/subagents/AGENTS.md` | Core extension — mux backend, lifecycle, layout, status, tools, widget, config |
-| `agents/AGENTS.md` | Bundled agent definitions (planner, scout, worker, reviewer, visual-tester) |
+| `agents/AGENTS.md` | Bundled agent definitions (worker, reviewer) |
 
 ### Contents owned by root
 
 - `docs/agents/*.md` — skill configuration docs (issue tracker, triage labels, domain)
-- `docs/research/*.md` — research reports (scout outputs, technical deep-dives)
+- `docs/research/*.md` — research reports (technical deep-dives)
 - `docs/review/*.md` — code reviews, feasibility analyses, design assessments
 - `test/` — test files (covered by `pi-extension/subagents/` module)
 - `package.json` — project metadata
