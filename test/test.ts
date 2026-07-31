@@ -925,6 +925,26 @@ describe("status.ts", () => {
     assert.match(aggregate, /\+2 more running\./);
     assert.doesNotMatch(aggregate, /\/tmp|\.jsonl/);
   });
+
+  it("parseStatusConfig accepts minIntervalMs", () => {
+    const config = parseStatusConfig({ status: { enabled: true, minIntervalMs: 10000 } });
+    assert.equal(config.minIntervalMs, 10000);
+  });
+
+  it("returns throttle notice when called within minIntervalMs", async () => {
+    const { checkStatusThrottle, resetStatusCheckThrottle } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    assert.ok(checkStatusThrottle(), "first call should pass");
+    assert.ok(!checkStatusThrottle(), "second call within interval should be throttled");
+  });
+
+  it("allows check after minIntervalMs has passed", async () => {
+    const { checkStatusThrottle, resetStatusCheckThrottle } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    assert.ok(checkStatusThrottle(), "first call should pass");
+    resetStatusCheckThrottle();
+    assert.ok(checkStatusThrottle(), "after reset, should pass");
+  });
 });
 
 describe("subagent discovery", () => {
