@@ -78,6 +78,7 @@ function formatAgentSection(agents: ListedAgentDefinition[]): string {
         "- For code review → Reviewer",
         "- Always pass `agent` param matching the name",
         "- Multiple Workers can run in parallel",
+        "- `subagent_status` is rate-limited to once per 30s. Status changes arrive automatically as steer messages — only call the tool when: user asked, suspected stall, or silent exit.",
       ].join("\n")
     : [
         "### Guidance",
