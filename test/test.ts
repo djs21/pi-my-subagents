@@ -938,7 +938,7 @@ describe("status.ts", () => {
     assert.ok(!checkStatusThrottle(), "second call within interval should be throttled");
   });
 
-  it("allows check after minIntervalMs has passed", async () => {
+  it("allows check after throttle reset", async () => {
     const { checkStatusThrottle, resetStatusCheckThrottle } = await import("../pi-extension/subagents/shared.ts");
     resetStatusCheckThrottle();
     assert.ok(checkStatusThrottle(), "first call should pass");

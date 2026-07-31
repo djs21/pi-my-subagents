@@ -51,7 +51,7 @@ export function resetStatusCheckThrottle(): void {
 }
 
 export function getStatusCheckInterval(): number {
-  return 30_000;
+  return statusConfig.minIntervalMs;
 }
 
 export function checkStatusThrottle(): boolean {
