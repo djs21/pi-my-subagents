@@ -85,6 +85,7 @@ function formatAgentSection(agents: ListedAgentDefinition[]): string {
         "- You CAN write/edit/bash directly",
         "- For complex multi-file changes, delegate to Worker for isolation",
         "- For code review → Reviewer",
+        "- `subagent_status` is rate-limited to once per 30s. Status changes arrive automatically as steer messages — only call the tool when: user asked, suspected stall, or silent exit.",
       ].join("\n");
 
   return [
