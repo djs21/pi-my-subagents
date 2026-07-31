@@ -12,11 +12,11 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`mux-layout.ts`** — layout engine for subagent panes (createTileSurface, equalizePanes, DEFAULT_SPLIT_RATIO). Supports tiling (DWM-style) and bottom-stack layouts via layoutMode parameter. State: lastSubagentSurface, stackPanes.
 - **`monocle.ts`** — monocle layout engine for subagent panes (createMonocleSurface, equalizeMonoclePanes, resetMonocleLayout, getGroupName). First subagent of a type creates a new window; subsequent subagents of same type share that window with equalized heights. State: monocleState Map<string, MonocleGroup>.
 - **`enforce.ts`** — enforcement config builder (buildSubagentToolAllowlist, resolveDenyTools, buildPiPromptArgs, resolveLaunchBehavior, resolveEffectiveInteractive, resolveEffectiveSessionMode). Pure config, no mux/I/O.
-- **`shared.ts`** — shared lifecycle infra (surfaceReadiness, watchSubagent, runningSubagents, getModuleAbortSignal, updateWidget, startWidgetRefresh, setLatestCtx). Used by both spin and resume.
+- **`shared.ts`** — shared lifecycle infra (surfaceReadiness, watchSubagent, runningSubagents, getModuleAbortSignal, updateWidget, startWidgetRefresh, setLatestCtx, lastStatusCheckAt, resetStatusCheckThrottle, checkStatusThrottle). Used by both spin and resume. Throttle state is module-level (per-process, per-session).
 - **`spin.ts`** — spawn lifecycle (launchSubagent, executeSubagentTool, createSubagentTool, renderSubagentCall/Result). Owns the complete new-sub-agent flow.
 - **`resume.ts`** — resume lifecycle (executeSubagentResume, createSubagentResumeTool, renderSubagentResumeCall/Result, resolveResumeLaunchBehavior). Fixes P1: enforces tools/deny/agent via enforce.ts.
 - **`types.ts`** — core type definitions (SubagentParams, RunningSubagent, SubagentResult, etc.)
-- **`status.ts`** — subagent status state machine (starting → active → waiting → stalled)
+- **`status.ts`** — subagent status state machine (starting → active → waiting → stalled) + config parsing (StatusConfig with minIntervalMs, env override PI_SUBAGENT_STATUS_MIN_INTERVAL_MS, min-bound validation)
 - **`activity.ts`** — subagent activity recording
 - **`session.ts`** — session file management (read/write/merge)
 - **`agent.ts`** — agent definition loading, defaults resolution, path resolution, config parsing
@@ -45,6 +45,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - `spin.ts` creates `~/.local/share/pi/subagents/<id>/incoming/` per subagent launch, sets PI_SUBAGENT_COORD_DIR env var
 - `subagent-done.ts` registers `check_messages()` tool that reads & deletes files from coord dir's incoming/ — provides non-blocking orchestrator → sub-agent messaging
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
+- `subagent_status` tool is rate-limited via `shared.ts:checkStatusThrottle()` — min 30s between calls (configurable). Throttle resets on new spawn via `resetStatusCheckThrottle()` in `spin.ts:launchSubagent`
 
 ## Work Guidance
 
@@ -53,10 +54,11 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - Resize backends go in `herdr-mux.ts` and `tmux-mux.ts` — dispatch through closures in `mux.ts:createSurface()`
 - All config/agent resolution goes through `agent.ts` and `config.ts`
 - **Sub-agent prompt minimization**: every sub-agent strips unnecessary layers (pi base prompt via `replace`, project context via `--no-context-files`, skills via `--no-skills`, orchestration via `PI_SUBAGENT_NAME` guard). Custom extensions are disabled — only `subagent-done.ts` is injected.
+- **Status tool rate limiting**: `subagent_status` enforces a minimum interval (default 30s, configurable via `status.minIntervalMs` or `PI_SUBAGENT_STATUS_MIN_INTERVAL_MS`). Throttled calls return a short notice. Throttle resets on new spawn. This prevents the main agent from polling excessively and wasting API tokens.
 
 ## Verification
 
-- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery
+- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery, status throttle (checkStatusThrottle, resetStatusCheckThrottle), config parsing (minIntervalMs default/env/config/min-bound)
 - Run: `npm test`
 
 ## Child DOX Index
