@@ -37,6 +37,7 @@ import {
   runningSubagents,
   updateWidget,
   startWidgetRefresh,
+  resetStatusCheckThrottle,
 } from "./shared.ts";
 import {
   isMuxAvailable,
@@ -71,6 +72,7 @@ export async function launchSubagent(
   ctx: { sessionManager: { getSessionFile(): string | null; getSessionId(): string; getSessionDir(): string }; cwd: string },
   options?: { surface?: string },
 ): Promise<RunningSubagent> {
+  resetStatusCheckThrottle();
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
 

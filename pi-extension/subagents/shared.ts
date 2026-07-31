@@ -42,7 +42,27 @@ export function getModuleAbortSignal(): AbortSignal {
 /** All currently running subagents, keyed by id. */
 export const runningSubagents = new Map<string, RunningSubagent>();
 
-// ─── Surface Readiness ────────────────────────────────────────────
+// ─── Status Check Throttle ────────────────────────────────────────
+
+let lastStatusCheckAt = 0;
+
+export function resetStatusCheckThrottle(): void {
+  lastStatusCheckAt = 0;
+}
+
+export function getStatusCheckInterval(): number {
+  return 30_000;
+}
+
+export function checkStatusThrottle(): boolean {
+  const now = Date.now();
+  const interval = getStatusCheckInterval();
+  if (now - lastStatusCheckAt < interval) return false;
+  lastStatusCheckAt = now;
+  return true;
+}
+
+// ─── Surface Readiness
 
 /**
  * Wait for a mux surface's shell to be ready to accept commands.

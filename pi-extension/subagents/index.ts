@@ -86,7 +86,7 @@ import {
   subagentStalledRenderer,
 } from "./renderers.ts";
 import { createSubagentResumeTool } from "./resume.ts";
-import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget } from "./shared.ts";
+import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget, checkStatusThrottle } from "./shared.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -280,16 +280,26 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       label: "Subagent Status",
       description:
         "Show status of running subagents. " +
-        "Optionally filter by id or name. Returns current status snapshot for each running subagent.",
+        "RATE LIMITED: max once per 30s — calling more often returns a throttle notice. " +
+        "Status changes are auto-delivered as steer messages. Only call when: user asked, suspected stall, or silent exit. " +
+        "Optionally filter by id or name.",
       promptSnippet:
         "Show status of running subagents. " +
-        "Optionally filter by id or name. Returns current status snapshot for each running subagent.",
+        "Rate limited to max once per 30s. Status changes auto-deliver as steers. " +
+        "Optionally filter by id or name.",
       parameters: Type.Object({
         id: Type.Optional(Type.String({ description: "Exact running subagent id" })),
         name: Type.Optional(Type.String({ description: "Exact running subagent display name" })),
       }),
 
       async execute(_toolCallId, params) {
+        if (!checkStatusThrottle()) {
+          return {
+            content: [{ type: "text", text: "Rate-limited: min 30s between checks. Status auto-delivered via steers on change. Call again later." }],
+            details: { agents: [] },
+          };
+        }
+
         const { id, name } = params ?? {};
         let entries = Array.from(runningSubagents.entries());
 
