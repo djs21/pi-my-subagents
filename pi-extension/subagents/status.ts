@@ -148,7 +148,6 @@ export function parseStatusConfig(rawConfig: unknown, source = "config.json"): S
   const status = requireObject(config.status, source, "status");
   rejectUnsupportedKeys(status, ["enabled", "minIntervalMs"], source, "status");
   const enabled = requireBoolean(status.enabled, source, "status.enabled");
-  const minIntervalMs = typeof status.minIntervalMs === "number" ? status.minIntervalMs : 30_000;
 
   const envMinInterval = process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS;
   let minIntervalMs: number;
