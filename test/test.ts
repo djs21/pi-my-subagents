@@ -926,6 +926,40 @@ describe("status.ts", () => {
     assert.doesNotMatch(aggregate, /\/tmp|\.jsonl/);
   });
 
+  it("parseStatusConfig uses default minIntervalMs when not specified", () => {
+    const config = parseStatusConfig({ status: { enabled: true } });
+    assert.equal(config.minIntervalMs, 30_000);
+  });
+
+  it("parseStatusConfig accepts minIntervalMs from config", () => {
+    const config = parseStatusConfig({ status: { enabled: true, minIntervalMs: 60_000 } });
+    assert.equal(config.minIntervalMs, 60_000);
+  });
+
+  it("parseStatusConfig rejects minIntervalMs below 1000", () => {
+    assert.throws(() => {
+      parseStatusConfig({ status: { enabled: true, minIntervalMs: 500 } });
+    });
+  });
+
+  it("parseStatusConfig rejects non-numeric minIntervalMs", () => {
+    assert.throws(() => {
+      parseStatusConfig({ status: { enabled: true, minIntervalMs: "not a number" } });
+    });
+  });
+
+  it("parseStatusConfig reads minIntervalMs from env var PI_SUBAGENT_STATUS_MIN_INTERVAL_MS", () => {
+    const original = process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS;
+    try {
+      process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS = "5000";
+      const config = parseStatusConfig({ status: { enabled: true } });
+      assert.equal(config.minIntervalMs, 5000);
+    } finally {
+      if (original === undefined) delete process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS;
+      else process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS = original;
+    }
+  });
+
   it("parseStatusConfig accepts minIntervalMs", () => {
     const config = parseStatusConfig({ status: { enabled: true, minIntervalMs: 10000 } });
     assert.equal(config.minIntervalMs, 10000);
