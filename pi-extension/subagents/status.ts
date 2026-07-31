@@ -22,6 +22,7 @@ export type StatusActivityPhase = "starting" | "active" | "waiting" | "done";
 export interface StatusConfig {
   enabled: boolean;
   lineLimit: number;
+  minIntervalMs: number;
 }
 
 export type StatusObservation =
@@ -139,15 +140,35 @@ function activityLabel(snapshot: Pick<StatusSnapshot, "activityLabel" | "activeS
   return snapshot.activityLabel ?? snapshot.activeScope;
 }
 
+export const DEFAULT_STATUS_MIN_INTERVAL_MS = 30_000;
+export const MIN_STATUS_MIN_INTERVAL_MS = 1_000;
+
 export function parseStatusConfig(rawConfig: unknown, source = "config.json"): StatusConfig {
   const config = requireObject(rawConfig, source, "root");
   const status = requireObject(config.status, source, "status");
-  rejectUnsupportedKeys(status, ["enabled"], source, "status");
+  rejectUnsupportedKeys(status, ["enabled", "minIntervalMs"], source, "status");
   const enabled = requireBoolean(status.enabled, source, "status.enabled");
+
+  const envMinInterval = process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS;
+  let minIntervalMs: number;
+  if (envMinInterval != null) {
+    minIntervalMs = Number(envMinInterval);
+    if (!Number.isFinite(minIntervalMs) || minIntervalMs < MIN_STATUS_MIN_INTERVAL_MS) {
+      invalidStatusConfig(source, `minIntervalMs from env must be >= ${MIN_STATUS_MIN_INTERVAL_MS}`);
+    }
+  } else if (status.minIntervalMs != null) {
+    minIntervalMs = Number(status.minIntervalMs);
+    if (!Number.isFinite(minIntervalMs) || minIntervalMs < MIN_STATUS_MIN_INTERVAL_MS) {
+      invalidStatusConfig(source, `minIntervalMs must be >= ${MIN_STATUS_MIN_INTERVAL_MS}`);
+    }
+  } else {
+    minIntervalMs = DEFAULT_STATUS_MIN_INTERVAL_MS;
+  }
 
   return {
     enabled,
     lineLimit: DEFAULT_STATUS_LINE_LIMIT,
+    minIntervalMs,
   };
 }
 

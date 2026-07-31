@@ -514,6 +514,7 @@ describe("status.ts", () => {
     assert.deepEqual(disabled, {
       enabled: false,
       lineLimit: 4,
+      minIntervalMs: 30_000,
     });
   });
 
@@ -524,6 +525,7 @@ describe("status.ts", () => {
     assert.deepEqual(config, {
       enabled: true,
       lineLimit: 4,
+      minIntervalMs: 30_000,
     });
   });
 
@@ -540,6 +542,7 @@ describe("status.ts", () => {
       assert.deepEqual(config, {
         enabled: true,
         lineLimit: 4,
+        minIntervalMs: 30_000,
       });
     });
   });
