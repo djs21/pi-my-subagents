@@ -86,7 +86,7 @@ import {
   subagentStalledRenderer,
 } from "./renderers.ts";
 import { createSubagentResumeTool } from "./resume.ts";
-import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget, checkStatusThrottle } from "./shared.ts";
+import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget, checkStatusThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot } from "./shared.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -280,12 +280,13 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       label: "Subagent Status",
       description:
         "Show status of running subagents. " +
-        "RATE LIMITED: max once per 30s — calling more often returns a throttle notice. " +
+        "RATE LIMITED: max once per 30s — calling more often returns a throttle notice with retry time and last-known status. " +
         "Status changes are auto-delivered as steer messages. Only call when: user asked, suspected stall, or silent exit. " +
         "Optionally filter by id or name.",
       promptSnippet:
         "Show status of running subagents. " +
-        "Rate limited to max once per 30s. Status changes auto-deliver as steers. " +
+        "Rate limited to max once per 30s. Throttled calls include retry time and last-known status. " +
+        "Status changes auto-deliver as steers. " +
         "Optionally filter by id or name.",
       parameters: Type.Object({
         id: Type.Optional(Type.String({ description: "Exact running subagent id" })),
@@ -294,9 +295,14 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
       async execute(_toolCallId, params) {
         if (!checkStatusThrottle()) {
+          const retryAfter = Math.ceil(getStatusThrottleRemainingMs() / 1000);
+          const snapshot = getStatusSnapshot();
+          const snapshotText = snapshot
+            ? ` Last known: ${snapshot.text} (${Math.round((Date.now() - snapshot.at) / 1000)}s ago).`
+            : "";
           return {
-            content: [{ type: "text", text: "Rate-limited: min 30s between checks. Status auto-delivered via steers on change. Call again later." }],
-            details: { agents: [] },
+            content: [{ type: "text", text: `Rate-limited: next check in ${retryAfter}s.${snapshotText} Status auto-delivered via steers on change — do not call this tool again before then.` }],
+            details: { agents: [], throttled: true },
           };
         }
 
@@ -323,6 +329,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           return formatStatusLine(running.name, snapshot);
         });
 
+        setStatusSnapshot(lines.join("\n"));
+
         return {
           content: [{ type: "text", text: lines.join("\n") }],
           details: {
@@ -340,6 +348,10 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
       renderResult(result, _opts, theme) {
         const details = result.details as any;
+        if (details?.throttled) {
+          const text = result.content?.[0]?.text ?? "Rate-limited.";
+          return new Text(theme.fg("dim", text), 0, 0);
+        }
         const agents = details?.agents ?? [];
         if (agents.length === 0) {
           return new Text(theme.fg("dim", "No running subagents."), 0, 0);

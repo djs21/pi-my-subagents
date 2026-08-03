@@ -45,7 +45,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - `spin.ts` creates `~/.local/share/pi/subagents/<id>/incoming/` per subagent launch, sets PI_SUBAGENT_COORD_DIR env var
 - `subagent-done.ts` registers `check_messages()` tool that reads & deletes files from coord dir's incoming/ — provides non-blocking orchestrator → sub-agent messaging
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
-- `subagent_status` tool is rate-limited via `shared.ts:checkStatusThrottle()` — min 30s between calls (configurable). Throttle resets on new spawn via `resetStatusCheckThrottle()` in `spin.ts:launchSubagent`
+- `subagent_status` tool is rate-limited via `shared.ts:checkStatusThrottle()` — min 30s between calls (configurable). Throttle resets on new spawn via `resetStatusCheckThrottle()` in `spin.ts:launchSubagent`. Throttled responses include `throttled: true` in details, retry time, and last-known status snapshot. Renderer checks `details.throttled` flag to distinguish throttled from genuinely-empty.
 
 ## Work Guidance
 
@@ -58,7 +58,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 
 ## Verification
 
-- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery, status throttle (checkStatusThrottle, resetStatusCheckThrottle), config parsing (minIntervalMs default/env/config/min-bound)
+- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery, status throttle (checkStatusThrottle, resetStatusCheckThrottle) + getStatusThrottleRemainingMs, setStatusSnapshot/getStatusSnapshot, throttle response rendering (throttled flag, retry time, last-known status), config parsing (minIntervalMs default/env/config/min-bound)
 - Run: `npm test`
 
 ## Child DOX Index

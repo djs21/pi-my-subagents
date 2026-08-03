@@ -979,6 +979,61 @@ describe("status.ts", () => {
     resetStatusCheckThrottle();
     assert.ok(checkStatusThrottle(), "after reset, should pass");
   });
+
+  it("setStatusSnapshot/getStatusSnapshot roundtrip", async () => {
+    const { setStatusSnapshot, getStatusSnapshot } = await import("../pi-extension/subagents/shared.ts");
+    const initial = getStatusSnapshot();
+    assert.equal(initial, null, "initial snapshot should be null");
+
+    setStatusSnapshot("3 subagents active");
+    const snap = getStatusSnapshot();
+    assert.ok(snap, "snapshot should be set");
+    assert.equal(snap!.text, "3 subagents active");
+    assert.ok(Date.now() - snap!.at < 1000, "snapshot timestamp should be recent");
+  });
+
+  it("getStatusThrottleRemainingMs returns remaining time", async () => {
+    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    checkStatusThrottle(); // sets timestamp — throttle now active
+    const remaining = getStatusThrottleRemainingMs();
+    assert.ok(remaining >= 29900, `expected ~30000ms remaining, got ${remaining}`);
+    assert.ok(remaining <= 30000, `expected <= 30000ms remaining, got ${remaining}`);
+  });
+
+  it("throttled response includes throttled: true in details", async () => {
+    const { checkStatusThrottle, resetStatusCheckThrottle } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    checkStatusThrottle(); // first call — passes, sets timestamp
+    const result = checkStatusThrottle(); // second call — throttled
+    assert.equal(result, false, "second call should be throttled");
+  });
+
+  it("renderResult renders rate-limit text when throttled (not No running subagents)", () => {
+    const { api, registeredTools } = createMockExtensionApi();
+    (subagentsModule as any).default(api);
+    const statusTool = registeredTools.find((t: any) => t.name === "subagent_status");
+    assert.ok(statusTool, "expected subagent_status tool to be registered");
+
+    const theme = {
+      fg(_color: string, text: string) { return text; },
+      bold(text: string) { return text; },
+    };
+    const throttledResult = {
+      content: [{ type: "text", text: "Rate-limited: next check in 25s. Status auto-delivered via steers on change — do not call this tool again before then." }],
+      details: { agents: [], throttled: true },
+    };
+    const rendered = statusTool.renderResult(throttledResult as any, {}, theme);
+    const text = rendered.render(80).join("\n");
+    assert.ok(
+      text.includes("Rate-limited"),
+      `expected rate-limit text in rendered output, got: ${text}`,
+    );
+    assert.ok(
+      !text.includes("No running subagents"),
+      `should NOT show "No running subagents" for throttled response, got: ${text}`,
+    );
+  });
 });
 
 describe("subagent discovery", () => {

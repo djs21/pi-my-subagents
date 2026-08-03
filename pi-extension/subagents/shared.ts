@@ -62,6 +62,23 @@ export function checkStatusThrottle(): boolean {
   return true;
 }
 
+export function getStatusThrottleRemainingMs(): number {
+  const elapsed = Date.now() - lastStatusCheckAt;
+  return Math.max(0, statusConfig.minIntervalMs - elapsed);
+}
+
+// ─── Status Snapshot Cache ────────────────────────────────
+
+let lastStatusSnapshot: { at: number; text: string } | null = null;
+
+export function setStatusSnapshot(text: string): void {
+  lastStatusSnapshot = { at: Date.now(), text };
+}
+
+export function getStatusSnapshot(): { at: number; text: string } | null {
+  return lastStatusSnapshot;
+}
+
 // ─── Surface Readiness
 
 /**

@@ -21,7 +21,7 @@ import {
   resolveEffectiveSessionMode,
 } from "./enforce.ts";
 import { resolveResumeLaunchBehavior } from "./resume.ts";
-import { runningSubagents } from "./shared.ts";
+import { runningSubagents, checkStatusThrottle, resetStatusCheckThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot } from "./shared.ts";
 import {
   borderLine,
   renderSubagentWidgetLines,
@@ -77,4 +77,9 @@ export const __test__ = {
   handleSubagentInterrupt,
   resolveInterruptTarget,
   requestSubagentInterrupt,
+  checkStatusThrottle,
+  resetStatusCheckThrottle,
+  getStatusThrottleRemainingMs,
+  setStatusSnapshot,
+  getStatusSnapshot,
 };
