@@ -317,6 +317,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         }
 
         if (entries.length === 0) {
+          setStatusSnapshot("No running subagents found.");
           return {
             content: [{ type: "text", text: "No running subagents found." }],
             details: { agents: [] },
