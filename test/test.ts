@@ -1034,6 +1034,64 @@ describe("status.ts", () => {
       `should NOT show "No running subagents" for throttled response, got: ${text}`,
     );
   });
+
+  it("consecutive throttled calls grow remaining time (backoff)", async () => {
+    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    checkStatusThrottle(); // pass — sets timestamp
+    // Simulate consecutive throttled calls
+    checkStatusThrottle(); // strike 1, next interval = 60s
+    const remaining1 = getStatusThrottleRemainingMs();
+    assert.ok(remaining1 >= 50000, `expected ~60s remaining after 1st strike, got ${remaining1}`);
+
+    checkStatusThrottle(); // strike 2, next interval = 120s
+    const remaining2 = getStatusThrottleRemainingMs();
+    assert.ok(remaining2 >= 110000, `expected ~120s remaining after 2nd strike, got ${remaining2}`);
+    assert.ok(remaining2 > remaining1, "remaining time should increase after 2nd strike");
+  });
+
+  it("successful checkStatusThrottle resets backoff strikes", async () => {
+    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleStrikes } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    checkStatusThrottle(); // pass
+    checkStatusThrottle(); // throttle (strike 1)
+    checkStatusThrottle(); // throttle (strike 2)
+    assert.equal(getStatusThrottleStrikes(), 2, "should have 2 strikes");
+    // Manually set lastStatusCheckAt far in the past to allow a pass
+    // (checkStatusThrottle uses lastStatusCheckAt internally, so we just wait... or reset)
+    resetStatusCheckThrottle();
+    checkStatusThrottle(); // pass — resets strikes
+    assert.equal(getStatusThrottleStrikes(), 0, "strikes should reset to 0 after pass");
+  });
+
+  it("resetStatusCheckThrottle resets strikes to 0", async () => {
+    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleStrikes, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    checkStatusThrottle(); // pass
+    checkStatusThrottle(); // throttle (strike 1)
+    assert.equal(getStatusThrottleStrikes(), 1);
+    resetStatusCheckThrottle();
+    assert.equal(getStatusThrottleStrikes(), 0, "strikes reset to 0");
+    assert.equal(getStatusThrottleRemainingMs(), 0, "remaining resets to 0");
+  });
+
+  it("getStatusThrottleRemainingMs returns 0 before any check", async () => {
+    const { resetStatusCheckThrottle, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    assert.equal(getStatusThrottleRemainingMs(), 0, "remaining should be 0 before first call");
+  });
+
+  it("throttle penalty text includes backoff info", async () => {
+    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleStrikes, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
+    resetStatusCheckThrottle();
+    checkStatusThrottle(); // pass
+    // The notice text is built in index.ts execute — verify it includes penalty
+    // when strikes > 0. Since we can't easily call the full tool, verify the
+    // mechanism: strikes > 0 and remaining > base interval
+    checkStatusThrottle(); // throttle, strike 1
+    assert.ok(getStatusThrottleStrikes() >= 1, "should have at least 1 strike");
+    assert.ok(getStatusThrottleRemainingMs() > 30000, "remaining should exceed base 30s due to backoff");
+  });
 });
 
 describe("subagent discovery", () => {

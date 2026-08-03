@@ -86,7 +86,7 @@ import {
   subagentStalledRenderer,
 } from "./renderers.ts";
 import { createSubagentResumeTool } from "./resume.ts";
-import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget, checkStatusThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot } from "./shared.ts";
+import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget, checkStatusThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot, getStatusThrottleStrikes } from "./shared.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -296,12 +296,14 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       async execute(_toolCallId, params) {
         if (!checkStatusThrottle()) {
           const retryAfter = Math.ceil(getStatusThrottleRemainingMs() / 1000);
+          const strikes = getStatusThrottleStrikes();
           const snapshot = getStatusSnapshot();
           const snapshotText = snapshot
             ? ` Last known: ${snapshot.text} (${Math.round((Date.now() - snapshot.at) / 1000)}s ago).`
             : "";
+          const penaltyText = strikes > 0 ? ` Repeated polling extends the cooldown.` : "";
           return {
-            content: [{ type: "text", text: `Rate-limited: next check in ${retryAfter}s.${snapshotText} Status auto-delivered via steers on change — do not call this tool again before then.` }],
+            content: [{ type: "text", text: `Rate-limited: next check in ${retryAfter}s.${snapshotText}${penaltyText} Status auto-delivered via steers on change — do not call this tool again before then.` }],
             details: { agents: [], throttled: true },
           };
         }

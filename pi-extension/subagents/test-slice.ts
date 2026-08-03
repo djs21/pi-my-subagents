@@ -21,7 +21,7 @@ import {
   resolveEffectiveSessionMode,
 } from "./enforce.ts";
 import { resolveResumeLaunchBehavior } from "./resume.ts";
-import { runningSubagents, checkStatusThrottle, resetStatusCheckThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot } from "./shared.ts";
+import { runningSubagents, checkStatusThrottle, resetStatusCheckThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot, getStatusThrottleStrikes } from "./shared.ts";
 import {
   borderLine,
   renderSubagentWidgetLines,
@@ -82,4 +82,5 @@ export const __test__ = {
   getStatusThrottleRemainingMs,
   setStatusSnapshot,
   getStatusSnapshot,
+  getStatusThrottleStrikes,
 };

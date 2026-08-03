@@ -45,9 +45,16 @@ export const runningSubagents = new Map<string, RunningSubagent>();
 // ─── Status Check Throttle ────────────────────────────────────────
 
 let lastStatusCheckAt = 0;
+let throttleStrikes = 0;
+const MAX_THROTTLE_STRIKES = 3;
+
+function effectiveInterval(): number {
+  return statusConfig.minIntervalMs * 2 ** Math.min(throttleStrikes, MAX_THROTTLE_STRIKES);
+}
 
 export function resetStatusCheckThrottle(): void {
   lastStatusCheckAt = 0;
+  throttleStrikes = 0;
 }
 
 export function getStatusCheckInterval(): number {
@@ -56,18 +63,28 @@ export function getStatusCheckInterval(): number {
 
 export function checkStatusThrottle(): boolean {
   const now = Date.now();
-  const interval = getStatusCheckInterval();
-  if (now - lastStatusCheckAt < interval) return false;
+  const interval = effectiveInterval();
+  if (now - lastStatusCheckAt < interval) {
+    lastStatusCheckAt = now;
+    throttleStrikes++;
+    return false;
+  }
   lastStatusCheckAt = now;
+  throttleStrikes = 0;
   return true;
 }
 
 export function getStatusThrottleRemainingMs(): number {
+  if (lastStatusCheckAt === 0) return 0;
   const elapsed = Date.now() - lastStatusCheckAt;
-  return Math.max(0, statusConfig.minIntervalMs - elapsed);
+  return Math.max(0, effectiveInterval() - elapsed);
 }
 
-// ─── Status Snapshot Cache ────────────────────────────────
+export function getStatusThrottleStrikes(): number {
+  return throttleStrikes;
+}
+
+// ─── Status Snapshot Cache ────────────────────────────────────────
 
 let lastStatusSnapshot: { at: number; text: string } | null = null;
 

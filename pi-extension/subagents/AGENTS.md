@@ -12,7 +12,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`mux-layout.ts`** — layout engine for subagent panes (createTileSurface, equalizePanes, DEFAULT_SPLIT_RATIO). Supports tiling (DWM-style) and bottom-stack layouts via layoutMode parameter. State: lastSubagentSurface, stackPanes.
 - **`monocle.ts`** — monocle layout engine for subagent panes (createMonocleSurface, equalizeMonoclePanes, resetMonocleLayout, getGroupName). First subagent of a type creates a new window; subsequent subagents of same type share that window with equalized heights. State: monocleState Map<string, MonocleGroup>.
 - **`enforce.ts`** — enforcement config builder (buildSubagentToolAllowlist, resolveDenyTools, buildPiPromptArgs, resolveLaunchBehavior, resolveEffectiveInteractive, resolveEffectiveSessionMode). Pure config, no mux/I/O.
-- **`shared.ts`** — shared lifecycle infra (surfaceReadiness, watchSubagent, runningSubagents, getModuleAbortSignal, updateWidget, startWidgetRefresh, setLatestCtx, lastStatusCheckAt, resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot). Used by both spin and resume. Throttle state and snapshot cache are module-level (per-process, per-session).
+- **`shared.ts`** — shared lifecycle infra (surfaceReadiness, watchSubagent, runningSubagents, getModuleAbortSignal, updateWidget, startWidgetRefresh, setLatestCtx, lastStatusCheckAt, throttleStrikes, effectiveInterval, resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleRemainingMs, getStatusThrottleStrikes, setStatusSnapshot, getStatusSnapshot). Used by both spin and resume. Throttle state (including backoff strikes), snapshot cache are module-level (per-process, per-session). Backoff doubles cooldown per strike, capped at 8x base.
 - **`spin.ts`** — spawn lifecycle (launchSubagent, executeSubagentTool, createSubagentTool, renderSubagentCall/Result). Owns the complete new-sub-agent flow.
 - **`resume.ts`** — resume lifecycle (executeSubagentResume, createSubagentResumeTool, renderSubagentResumeCall/Result, resolveResumeLaunchBehavior). Fixes P1: enforces tools/deny/agent via enforce.ts.
 - **`types.ts`** — core type definitions (SubagentParams, RunningSubagent, SubagentResult, etc.)
@@ -45,7 +45,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - `spin.ts` creates `~/.local/share/pi/subagents/<id>/incoming/` per subagent launch, sets PI_SUBAGENT_COORD_DIR env var
 - `subagent-done.ts` registers `check_messages()` tool that reads & deletes files from coord dir's incoming/ — provides non-blocking orchestrator → sub-agent messaging
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
-- `subagent_status` tool is rate-limited via `shared.ts:checkStatusThrottle()` — min 30s between calls (configurable). Throttle resets on new spawn via `resetStatusCheckThrottle()` in `spin.ts:launchSubagent`. Throttled responses include `throttled: true` in details, retry time, and last-known status snapshot. Renderer checks `details.throttled` flag to distinguish throttled from genuinely-empty.
+- `subagent_status` tool is rate-limited via `shared.ts:checkStatusThrottle()` — min 30s between calls (configurable) with **exponential backoff** (doubles per consecutive throttled call, capped at 8x base). `lastStatusCheckAt` is updated on both pass and throttle paths — each retry restarts the penalty clock. Throttle resets on new spawn via `resetStatusCheckThrottle()` in `spin.ts:launchSubagent`. Throttled responses include `throttled: true` in details, retry time, last-known status snapshot, and penalty text ("Repeated polling extends the cooldown."). Renderer checks `details.throttled` flag to distinguish throttled from genuinely-empty.
 
 ## Work Guidance
 
@@ -58,7 +58,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 
 ## Verification
 
-- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery, status throttle (checkStatusThrottle, resetStatusCheckThrottle) + getStatusThrottleRemainingMs, setStatusSnapshot/getStatusSnapshot, throttle response rendering (throttled flag, retry time, last-known status), config parsing (minIntervalMs default/env/config/min-bound)
+- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery, status throttle (checkStatusThrottle, resetStatusCheckThrottle) + getStatusThrottleRemainingMs, setStatusSnapshot/getStatusSnapshot, throttle response rendering (throttled flag, retry time, last-known status), getStatusThrottleStrikes, backoff (effectiveInterval, throttleStrikes, MAX_THROTTLE_STRIKES=3), config parsing (minIntervalMs default/env/config/min-bound)
 - Run: `npm test`
 
 ## Child DOX Index
