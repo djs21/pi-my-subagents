@@ -1,6 +1,8 @@
 # Send Messages Tool
 
-Purpose: Let the orchestrator send instructions to running subagents via send_messages, read by the subagent's check_messages tool.
+## Purpose
+
+Let the orchestrator send instructions to running subagents via send_messages, read by the subagent's check_messages tool.
 
 ## Requirements
 

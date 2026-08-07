@@ -1,6 +1,8 @@
 # Throttle Response Visibility
 
-Purpose: Make throttled subagent_status responses visually and programmatically distinguishable from genuinely-empty results, with actionable retry guidance.
+## Purpose
+
+Make throttled subagent_status responses visually and programmatically distinguishable from genuinely-empty results, with actionable retry guidance.
 
 ## Requirements
 

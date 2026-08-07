@@ -1,6 +1,8 @@
 # Status Rate Limit
 
-Purpose: Enforce a minimum interval between `subagent_status` tool calls to prevent excessive polling by the main agent.
+## Purpose
+
+Enforce a minimum interval between `subagent_status` tool calls to prevent excessive polling by the main agent.
 
 ## Requirements
 

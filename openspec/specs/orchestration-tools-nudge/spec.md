@@ -1,6 +1,8 @@
 # Orchestration Tools Nudge
 
-Purpose: Nudge the main agent's system prompt with the orchestration tools it has (subagent_status with backoff, subagent_interrupt, subagents_list, send_messages).
+## Purpose
+
+Nudge the main agent's system prompt with the orchestration tools it has (subagent_status with backoff, subagent_interrupt, subagents_list, send_messages).
 
 ## Requirements
 

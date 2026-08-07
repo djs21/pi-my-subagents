@@ -1,6 +1,8 @@
 # Throttle Backoff
 
-Purpose: Penalize repeated subagent_status polling with exponential backoff, training persistent models to stop checking and wait for steer messages.
+## Purpose
+
+Penalize repeated subagent_status polling with exponential backoff, training persistent models to stop checking and wait for steer messages.
 
 ## Requirements
 
