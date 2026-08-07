@@ -38,6 +38,7 @@ import {
   updateWidget,
   startWidgetRefresh,
   resetStatusCheckThrottle,
+  getCoordDir,
 } from "./shared.ts";
 import {
   isMuxAvailable,
@@ -77,7 +78,7 @@ export async function launchSubagent(
   const id = Math.random().toString(16).slice(2, 10);
 
   // Coordination dir for incoming messages from orchestrator
-  const coordDir = join(process.env.HOME || "/tmp", ".local", "share", "pi", "subagents", id);
+  const coordDir = getCoordDir(id);
   mkdirSync(join(coordDir, "incoming"), { recursive: true });
   // Auto-resolve agent: explicit params.agent wins (case-any), else try name as fallback
   // If exact name doesn't match an agent definition, try prefix matching

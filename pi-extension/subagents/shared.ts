@@ -4,7 +4,8 @@
  *
  * Imported by spin.ts and resume.ts. Does NOT import from enforce.ts, agent.ts, spin.ts, or resume.ts.
  */
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import type { RunningSubagent, SubagentResult } from "./types.ts";
 import {
   pollForExit,
@@ -35,6 +36,40 @@ const POLL_ABORT_KEY = Symbol.for("pi-subagents/poll-abort-controller");
 
 export function getModuleAbortSignal(): AbortSignal {
   return ((globalThis as any)[POLL_ABORT_KEY] as AbortController).signal;
+}
+
+// ─── Coordination Constants ──────────────────────────────────────────
+
+export const MAX_MESSAGE_CHARS = 4000;
+export const MAX_MESSAGES_PER_CALL = 10;
+export const MAX_PENDING_FILES = 10;
+
+// ─── Coordination Helpers ───────────────────────────────────────
+
+/** Single source of truth for a subagent's coordination directory. */
+export function getCoordDir(id: string): string {
+  return join(process.env.HOME || "/tmp", ".local", "share", "pi", "subagents", id);
+}
+
+/**
+ * Write an incoming message file to a subagent's coordination directory.
+ * Creates `incoming/` recursively if needed. Returns the filename.
+ */
+export function writeIncomingMessage(coordDir: string, seq: number, text: string): string {
+  const incoming = join(coordDir, "incoming");
+  mkdirSync(incoming, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const rand = Math.random().toString(16).slice(2, 6);
+  const filename = `${ts}-${seq}-${rand}.txt`;
+  writeFileSync(join(incoming, filename), text, "utf-8");
+  return filename;
+}
+
+/** Count pending message files in incoming/. Treats missing dir as 0. */
+export function countPendingFiles(coordDir: string): number {
+  const incoming = join(coordDir, "incoming");
+  if (!existsSync(incoming)) return 0;
+  return readdirSync(incoming).filter(f => f.endsWith(".txt")).length;
 }
 
 // ─── Running Subagents ────────────────────────────────────────────

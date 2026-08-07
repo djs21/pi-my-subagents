@@ -370,7 +370,7 @@ export default function (pi: ExtensionAPI) {
           details: {},
         };
       }
-      const files = readdirSync(incoming).sort();
+      const files = readdirSync(incoming).filter(f => f.endsWith('.txt')).sort();
       if (files.length === 0) {
         return {
           content: [{ type: "text", text: "No messages." }],

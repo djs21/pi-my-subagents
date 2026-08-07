@@ -21,7 +21,7 @@ import {
   resolveEffectiveSessionMode,
 } from "./enforce.ts";
 import { resolveResumeLaunchBehavior } from "./resume.ts";
-import { runningSubagents, checkStatusThrottle, resetStatusCheckThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot, getStatusThrottleStrikes } from "./shared.ts";
+import { runningSubagents, checkStatusThrottle, resetStatusCheckThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot, getStatusThrottleStrikes, getCoordDir, writeIncomingMessage, countPendingFiles, MAX_MESSAGE_CHARS, MAX_MESSAGES_PER_CALL, MAX_PENDING_FILES } from "./shared.ts";
 import {
   borderLine,
   renderSubagentWidgetLines,
@@ -83,4 +83,10 @@ export const __test__ = {
   setStatusSnapshot,
   getStatusSnapshot,
   getStatusThrottleStrikes,
+  getCoordDir,
+  writeIncomingMessage,
+  countPendingFiles,
+  MAX_MESSAGE_CHARS,
+  MAX_MESSAGES_PER_CALL,
+  MAX_PENDING_FILES,
 };

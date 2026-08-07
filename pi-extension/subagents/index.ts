@@ -86,7 +86,7 @@ import {
   subagentStalledRenderer,
 } from "./renderers.ts";
 import { createSubagentResumeTool } from "./resume.ts";
-import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget, checkStatusThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot, getStatusThrottleStrikes } from "./shared.ts";
+import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget, checkStatusThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot, getStatusThrottleStrikes, getCoordDir, writeIncomingMessage, countPendingFiles, MAX_MESSAGE_CHARS, MAX_MESSAGES_PER_CALL, MAX_PENDING_FILES } from "./shared.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -280,12 +280,12 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       label: "Subagent Status",
       description:
         "Show status of running subagents. " +
-        "RATE LIMITED: max once per 30s — calling more often returns a throttle notice with retry time and last-known status. " +
-        "Status changes are auto-delivered as steer messages. Only call when: user asked, suspected stall, or silent exit. " +
+        "RATE LIMITED with exponential backoff (30s→60s→120s→240s). Repeated polling extends the cooldown. Status changes auto-delivered as steers. " +
+        "Only call when: user asked, suspected stall, or silent exit. " +
         "Optionally filter by id or name.",
       promptSnippet:
         "Show status of running subagents. " +
-        "Rate limited to max once per 30s. Throttled calls include retry time and last-known status. " +
+        "Rate limited with exponential backoff (30s→60s→120s→240s). Repeated polling extends the cooldown. " +
         "Status changes auto-deliver as steers. " +
         "Optionally filter by id or name.",
       parameters: Type.Object({
@@ -370,6 +370,92 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           return `  ${nameTag} ${theme.fg("dim", "—")} ${kindTag} ${theme.fg("dim", `(${elapsed})`)}`;
         });
         return new Text(items.join("\n"), 0, 0);
+      },
+    });
+
+  // ── send_messages tool ──
+  if (shouldRegister("send_messages"))
+    pi.registerTool({
+      name: "send_messages",
+      label: "Send Messages",
+      description:
+        "Send messages to a running subagent via its coordination directory. " +
+        "Resolves target by id (preferred) or name against running subagents. " +
+        "Validates all constraints before writing (all-or-nothing). " +
+        "Subject to pending file backpressure (max 10 unread).",
+      promptSnippet:
+        "Send messages to a running subagent via its coordination directory. " +
+        "Resolves target by id (preferred) or name. All-or-nothing validation. " +
+        "Subject to pending file backpressure (max 10 unread).",
+      parameters: Type.Object({
+        id: Type.Optional(Type.String({ description: "Exact running subagent id" })),
+        name: Type.Optional(Type.String({ description: "Exact running subagent display name" })),
+        messages: Type.Array(Type.String(), { description: "Messages to deliver (1-10 messages, each max 4000 chars)" }),
+      }),
+
+      async execute(_toolCallId, params) {
+        const { id, name, messages } = params;
+
+        // Resolve target
+        if (!id && !name) {
+          return { content: [{ type: "text", text: "Error: must provide id or name" }], details: {} };
+        }
+        let running: RunningSubagent | undefined;
+        if (id) {
+          running = runningSubagents.get(id.trim());
+        } else {
+          for (const [, r] of runningSubagents) {
+            if (r.name === name.trim()) { running = r; break; }
+          }
+        }
+        if (!running) {
+          return { content: [{ type: "text", text: `No running subagent matching ${id ?? name}` }], details: {} };
+        }
+
+        // Validate
+        if (messages.length === 0) {
+          return { content: [{ type: "text", text: "Error: requires at least 1 message" }], details: {} };
+        }
+        if (messages.length > MAX_MESSAGES_PER_CALL) {
+          return { content: [{ type: "text", text: `Error: too many messages (max ${MAX_MESSAGES_PER_CALL})` }], details: {} };
+        }
+        for (const msg of messages) {
+          if (msg.trim().length === 0) {
+            return { content: [{ type: "text", text: "Error: message is empty" }], details: {} };
+          }
+          if (msg.length > MAX_MESSAGE_CHARS) {
+            return { content: [{ type: "text", text: `Error: message too long (max ${MAX_MESSAGE_CHARS} chars)` }], details: {} };
+          }
+        }
+        const coordDir = getCoordDir(running.id);
+        const pending = countPendingFiles(coordDir);
+        if (pending > MAX_PENDING_FILES) {
+          return { content: [{ type: "text", text: `Error: subagent has ${pending} unread messages. check_messages may not be polled — consider subagent_interrupt.` }], details: {} };
+        }
+
+        // Write messages
+        for (let i = 0; i < messages.length; i++) {
+          writeIncomingMessage(coordDir, i, messages[i]);
+        }
+        return { content: [{ type: "text", text: `Delivered ${messages.length} message(s) to ${running.name}` }], details: { name: running.name, count: messages.length } };
+      },
+
+      renderCall(args, theme) {
+        const target = args.id ? `${args.id}` : args.name ?? "(unknown)";
+        const count = args.messages?.length ?? 0;
+        return new Text(
+          theme.fg("accent", "▸") +
+            " " +
+            theme.fg("toolTitle", theme.bold(target)) +
+            theme.fg("dim", ` — ${count} message${count === 1 ? "" : "s"}`),
+          0,
+          0,
+        );
+      },
+
+      renderResult(result, _opts, theme) {
+        const text = typeof result.content[0]?.text === "string" ? result.content[0].text : "";
+        return new Text(theme.fg("dim", text), 0, 0);
       },
     });
 

@@ -2691,3 +2691,257 @@ describe("prompt-inject", () => {
     }
   });
 });
+
+describe("send_messages coordination helpers", () => {
+  const testApi = (subagentsModule as any).__test__;
+  const { getCoordDir, writeIncomingMessage, countPendingFiles } = testApi;
+
+  describe("getCoordDir", () => {
+    it("returns correct path with HOME set", () => {
+      const originalHome = process.env.HOME;
+      process.env.HOME = "/home/testuser";
+      try {
+        assert.equal(getCoordDir("abc123"), "/home/testuser/.local/share/pi/subagents/abc123");
+      } finally {
+        if (originalHome === undefined) delete process.env.HOME;
+        else process.env.HOME = originalHome;
+      }
+    });
+
+    it("falls back to /tmp when HOME is unset", () => {
+      const originalHome = process.env.HOME;
+      delete process.env.HOME;
+      try {
+        assert.equal(getCoordDir("abc123"), "/tmp/.local/share/pi/subagents/abc123");
+      } finally {
+        if (originalHome === undefined) delete process.env.HOME;
+        else process.env.HOME = originalHome;
+      }
+    });
+  });
+
+  describe("writeIncomingMessage", () => {
+    it("creates incoming dir and writes file with timestamp+seq+random prefix", () => {
+      withTempDir((dir) => {
+        const coordDir = join(dir, "sub1");
+        const filename = writeIncomingMessage(coordDir, 0, "hello world");
+        assert.ok(filename.match(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-0-[0-9a-f]{4}\.txt$/), `unexpected filename: ${filename}`);
+        const content = readFileSync(join(coordDir, "incoming", filename), "utf-8");
+        assert.equal(content, "hello world");
+      });
+    });
+
+    it("uses sequential seq numbers", () => {
+      withTempDir((dir) => {
+        const coordDir = join(dir, "sub1");
+        const f0 = writeIncomingMessage(coordDir, 0, "msg0");
+        const f1 = writeIncomingMessage(coordDir, 1, "msg1");
+        assert.ok(f0.includes("-0-"), `expected seq 0 in ${f0}`);
+        assert.ok(f1.includes("-1-"), `expected seq 1 in ${f1}`);
+      });
+    });
+  });
+
+  describe("countPendingFiles", () => {
+    it("returns 0 for nonexistent directory", () => {
+      withTempDir((dir) => {
+        assert.equal(countPendingFiles(join(dir, "nonexistent")), 0);
+      });
+    });
+
+    it("counts only .txt files", () => {
+      withTempDir((dir) => {
+        const coordDir = join(dir, "sub1");
+        const incoming = join(coordDir, "incoming");
+        mkdirSync(incoming, { recursive: true });
+        writeFileSync(join(incoming, "a.txt"), "a");
+        writeFileSync(join(incoming, "b.txt"), "b");
+        writeFileSync(join(incoming, ".DS_Store"), "x");
+        assert.equal(countPendingFiles(coordDir), 2);
+      });
+    });
+  });
+
+  describe("send_messages validation (via tool execute)", () => {
+    function makeRunning(id: string, name: string) {
+      return {
+        id, name, task: "", surface: `pane-${id}`, startTime: 0,
+        sessionFile: `${id}.jsonl`,
+        statusState: createStatusState({ source: "pi", startTimeMs: 0 }),
+      };
+    }
+
+    function getSendMessagesTool() {
+      const { api, registeredTools } = createMockExtensionApi();
+      (subagentsModule as any).default(api);
+      return registeredTools.find((t: any) => t.name === "send_messages");
+    }
+
+    it("rejects when no id or name provided", async () => {
+      const tool = getSendMessagesTool();
+      const result = await tool.execute("tc-1", { messages: ["hi"] });
+      assert.match(result.content[0].text, /must provide id or name/);
+    });
+
+    it("rejects empty messages array", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      runningMap.set("t1", makeRunning("t1", "TestAgent"));
+      try {
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { id: "t1", messages: [] });
+        assert.match(result.content[0].text, /requires at least 1 message/);
+      } finally {
+        runningMap.clear();
+      }
+    });
+
+    it("rejects more than 10 messages", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      runningMap.set("t1", makeRunning("t1", "TestAgent"));
+      try {
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { id: "t1", messages: new Array(11).fill("msg") });
+        assert.match(result.content[0].text, /too many messages/);
+      } finally {
+        runningMap.clear();
+      }
+    });
+
+    it("rejects empty/whitespace-only message", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      runningMap.set("t1", makeRunning("t1", "TestAgent"));
+      try {
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { id: "t1", messages: ["  "] });
+        assert.match(result.content[0].text, /message is empty/);
+      } finally {
+        runningMap.clear();
+      }
+    });
+
+    it("rejects message too long", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      runningMap.set("t1", makeRunning("t1", "TestAgent"));
+      try {
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { id: "t1", messages: ["x".repeat(4001)] });
+        assert.match(result.content[0].text, /message too long/);
+      } finally {
+        runningMap.clear();
+      }
+    });
+
+    it("resolves by name", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      runningMap.set("t1", makeRunning("t1", "TestAgent"));
+      try {
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { name: "TestAgent", messages: ["hello"] });
+        assert.match(result.content[0].text, /Delivered 1 message\(s\) to TestAgent/);
+      } finally {
+        runningMap.clear();
+      }
+    });
+
+    it("resolves by id (preferred over name)", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      runningMap.set("t1", makeRunning("t1", "Agent1"));
+      runningMap.set("t2", makeRunning("t2", "Agent2"));
+      try {
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { id: "t2", name: "Agent1", messages: ["hello"] });
+        assert.match(result.content[0].text, /Delivered 1 message\(s\) to Agent2/);
+      } finally {
+        runningMap.clear();
+      }
+    });
+
+    it("returns error for no match", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      runningMap.clear();
+      try {
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { id: "nope", messages: ["hello"] });
+        assert.match(result.content[0].text, /No running subagent matching nope/);
+      } finally {
+        runningMap.clear();
+      }
+    });
+
+    it("delivers messages to correct coordination directory", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      const dir = createTestDir();
+      const originalHome = process.env.HOME;
+      process.env.HOME = dir;
+      try {
+        const id = "delivertest";
+        runningMap.set(id, makeRunning(id, "DeliverTest"));
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { id, messages: ["msg1", "msg2"] });
+        assert.match(result.content[0].text, /Delivered 2 message\(s\) to DeliverTest/);
+        const incoming = join(getCoordDir(id), "incoming");
+        const files = readdirSync(incoming).sort();
+        assert.equal(files.length, 2);
+        assert.equal(readFileSync(join(incoming, files[0]), "utf-8"), "msg1");
+        assert.equal(readFileSync(join(incoming, files[1]), "utf-8"), "msg2");
+      } finally {
+        if (originalHome === undefined) delete process.env.HOME;
+        else process.env.HOME = originalHome;
+        runningMap.clear();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects when pending files exceed max", async () => {
+      const testApi = (subagentsModule as any).__test__;
+      const runningMap = testApi.runningSubagents as Map<string, any>;
+      const dir = createTestDir();
+      const originalHome = process.env.HOME;
+      process.env.HOME = dir;
+      try {
+        const id = "backpressure";
+        runningMap.set(id, makeRunning(id, "BackPressure"));
+        // Create 11 pending files (> MAX_PENDING_FILES = 10)
+        const coordDir = getCoordDir(id);
+        const incoming = join(coordDir, "incoming");
+        mkdirSync(incoming, { recursive: true });
+        for (let i = 0; i < 11; i++) writeFileSync(join(incoming, `${i}.txt`), `${i}`);
+        const tool = getSendMessagesTool();
+        const result = await tool.execute("tc-1", { id, messages: ["hello"] });
+        assert.match(result.content[0].text, /unread messages/);
+      } finally {
+        if (originalHome === undefined) delete process.env.HOME;
+        else process.env.HOME = originalHome;
+        runningMap.clear();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("registers send_messages tool", () => {
+      const { api, registeredTools } = createMockExtensionApi();
+      (subagentsModule as any).default(api);
+      const tool = registeredTools.find((t: any) => t.name === "send_messages");
+      assert.ok(tool, "expected send_messages tool to be registered");
+      assert.ok(tool.parameters.properties.messages, "expected messages parameter");
+    });
+  });
+});
+
+describe("check_messages .txt filter", () => {
+  it("subagent_status description mentions exponential backoff", () => {
+    const { api, registeredTools } = createMockExtensionApi();
+    (subagentsModule as any).default(api);
+    const tool = registeredTools.find((t: any) => t.name === "subagent_status");
+    assert.ok(tool, "expected subagent_status tool");
+    assert.match(tool.description, /exponential backoff/);
+    assert.match(tool.promptSnippet, /exponential backoff/);
+  });
+});
