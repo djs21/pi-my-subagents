@@ -18,7 +18,7 @@ const START = "<!-- subagent-orch-start -->";
 const END = "<!-- subagent-orch-end -->";
 
 const ORCHESTRATION_TOOLS = [
-  "- `subagent_status` — check sub-agent progress. Uses exponential backoff (30s → 60s → 120s → 240s) on repeated polls; status changes arrive automatically as steer messages.",
+  "- `subagent_status` — check sub-agent progress. Uses exponential backoff (30s → 60s → 120s → 240s) on repeated polls; status changes arrive automatically as steer messages — only call when: user asked, suspected stall, or silent exit.",
   "- `subagent_interrupt` — send an interrupt signal to a running sub-agent.",
   "- `subagents_list` — list all active sub-agents.",
   "- `send_messages` — deliver instructions to a running sub-agent (read via its check_messages).",
