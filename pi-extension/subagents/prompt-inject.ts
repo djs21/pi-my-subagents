@@ -17,6 +17,13 @@ import type { ListedAgentDefinition } from "./types.ts";
 const START = "<!-- subagent-orch-start -->";
 const END = "<!-- subagent-orch-end -->";
 
+const ORCHESTRATION_TOOLS = [
+  "- `subagent_status` — check sub-agent progress. Uses exponential backoff (30s → 60s → 120s → 240s) on repeated polls; status changes arrive automatically as steer messages.",
+  "- `subagent_interrupt` — send an interrupt signal to a running sub-agent.",
+  "- `subagents_list` — list all active sub-agents.",
+  "- `send_messages` — deliver instructions to a running sub-agent (read via its check_messages).",
+].join("\n");
+
 interface DelegateConfig {
   enabled: boolean;
 }
@@ -78,14 +85,14 @@ function formatAgentSection(agents: ListedAgentDefinition[]): string {
         "- For code review → Reviewer",
         "- Always pass `agent` param matching the name",
         "- Multiple Workers can run in parallel",
-        "- `subagent_status` is rate-limited to once per 30s. Status changes arrive automatically as steer messages — only call the tool when: user asked, suspected stall, or silent exit.",
+        ORCHESTRATION_TOOLS,
       ].join("\n")
     : [
         "### Guidance",
         "- You CAN write/edit/bash directly",
         "- For complex multi-file changes, delegate to Worker for isolation",
         "- For code review → Reviewer",
-        "- `subagent_status` is rate-limited to once per 30s. Status changes arrive automatically as steer messages — only call the tool when: user asked, suspected stall, or silent exit.",
+        ORCHESTRATION_TOOLS,
       ].join("\n");
 
   return [

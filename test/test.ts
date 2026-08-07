@@ -74,14 +74,18 @@ function createMockExtensionApi() {
   const registeredMessageRenderers: Array<any> = [];
   const sentUserMessages: string[] = [];
   const sentMessages: Array<any> = [];
+  const capturedHandlers: Record<string, Function> = {};
   return {
     registeredTools,
     registeredCommands,
     registeredMessageRenderers,
     sentUserMessages,
     sentMessages,
+    capturedHandlers,
     api: {
-      on() {},
+      on(event: string, handler: Function) {
+        capturedHandlers[event] = handler;
+      },
       registerTool(tool: any) {
         registeredTools.push(tool);
       },
@@ -2595,5 +2599,95 @@ describe("updateStallTracking", () => {
       { id: "x", kind: "stalled" as const, interactive: false },
     ]);
     assert.deepEqual(tracked, cloned, "original map unchanged");
+  });
+});
+
+describe("prompt-inject", () => {
+  it("injects a section containing all four orchestration tool names", async () => {
+    const { capturedHandlers, api } = createMockExtensionApi();
+    const { registerPromptInject } = await import("../pi-extension/subagents/prompt-inject.ts");
+
+    // Remove any existing agent definitions so the mock ones take effect
+    const previousCwd = process.cwd();
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    const previousSubagentName = process.env.PI_SUBAGENT_NAME;
+    delete process.env.PI_SUBAGENT_NAME;
+    const root = mkdtempSync(join(tmpdir(), "pi-test-prompt-"));
+    const globalDir = join(root, "global");
+    const projectDir = join(root, "project");
+    const projectAgentsDir = join(projectDir, ".pi", "agents");
+    mkdirSync(projectAgentsDir, { recursive: true });
+    mkdirSync(globalDir, { recursive: true });
+
+    writeAgentFile(projectAgentsDir, "worker", "name: worker");
+
+    process.chdir(projectDir);
+    process.env.PI_CODING_AGENT_DIR = globalDir;
+    try {
+      registerPromptInject(api as any);
+
+      const handler = capturedHandlers["before_agent_start"];
+      assert.ok(handler, "before_agent_start handler was registered");
+
+      const fakePrompt = "You are a helpful assistant.";
+      const result = handler({ systemPrompt: fakePrompt }, {});
+      const injected = result.systemPrompt;
+
+      assert.ok(injected.includes("`subagent_status`"), "missing subagent_status");
+      assert.ok(injected.includes("`subagent_interrupt`"), "missing subagent_interrupt");
+      assert.ok(injected.includes("`subagents_list`"), "missing subagents_list");
+      assert.ok(injected.includes("`send_messages`"), "missing send_messages");
+      assert.ok(injected.includes("backoff"), "missing backoff wording");
+      assert.ok(injected.includes("30s"), "missing 30s");
+      assert.ok(injected.includes("60s"), "missing 60s");
+      assert.ok(injected.includes("<!-- subagent-orch-start -->"), "missing start marker");
+      assert.ok(injected.includes("<!-- subagent-orch-end -->"), "missing end marker");
+    } finally {
+      process.chdir(previousCwd);
+      restoreEnvVar("PI_CODING_AGENT_DIR", previousAgentDir);
+      restoreEnvVar("PI_SUBAGENT_NAME", previousSubagentName);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("re-injects section on second call (replaces existing markers)", async () => {
+    const { capturedHandlers, api } = createMockExtensionApi();
+    const { registerPromptInject } = await import("../pi-extension/subagents/prompt-inject.ts");
+
+    const previousCwd = process.cwd();
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    const previousSubagentName = process.env.PI_SUBAGENT_NAME;
+    delete process.env.PI_SUBAGENT_NAME;
+    const root = mkdtempSync(join(tmpdir(), "pi-test-prompt-reinject-"));
+    const globalDir = join(root, "global");
+    const projectDir = join(root, "project");
+    const projectAgentsDir = join(projectDir, ".pi", "agents");
+    mkdirSync(projectAgentsDir, { recursive: true });
+    mkdirSync(globalDir, { recursive: true });
+
+    writeAgentFile(projectAgentsDir, "worker", "name: worker");
+
+    process.chdir(projectDir);
+    process.env.PI_CODING_AGENT_DIR = globalDir;
+    try {
+      registerPromptInject(api as any);
+
+      const handler = capturedHandlers["before_agent_start"];
+      // First injection
+      const result1 = handler({ systemPrompt: "base prompt" }, {});
+      // Second injection — should replace, not duplicate
+      const result2 = handler({ systemPrompt: result1.systemPrompt }, {});
+
+      const startCount = result2.systemPrompt.split("<!-- subagent-orch-start -->").length - 1;
+      const endCount = result2.systemPrompt.split("<!-- subagent-orch-end -->").length - 1;
+      assert.equal(startCount, 1, "start marker should appear exactly once");
+      assert.equal(endCount, 1, "end marker should appear exactly once");
+      assert.ok(result2.systemPrompt.includes("`subagent_status`"), "tool name missing after re-injection");
+    } finally {
+      process.chdir(previousCwd);
+      restoreEnvVar("PI_CODING_AGENT_DIR", previousAgentDir);
+      restoreEnvVar("PI_SUBAGENT_NAME", previousSubagentName);
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
