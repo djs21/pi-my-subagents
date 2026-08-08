@@ -15,7 +15,6 @@ import {
   Text,
 } from "@earendil-works/pi-tui";
 import { discoverAgentNames, discoverSkills, discoverTools, formatModelLabel, validateModel, type SkillOption, type ToolOption } from "./discovery.ts";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 // ─── Config Category Picker ─────────────────────────────────────
 
@@ -328,7 +327,7 @@ export async function editTools(
   ctx: ExtensionCommandContext,
 ): Promise<string[] | undefined> {
   const working = new Set(currentTools ?? []);
-  const available = discoverTools(ctx as any as ExtensionContext);
+  const available = discoverTools(ctx);
 
   while (true) {
     const choice = await ctx.ui.select(`Tools untuk "${_agentName}" (${working.size} aktif):`, buildToolOptions(working, available));
