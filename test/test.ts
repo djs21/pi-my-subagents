@@ -1,5 +1,6 @@
 import { describe, it, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { mergeOverrideList } from "../pi-extension/subagents/agent.ts";
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, homedir } from "node:os";
@@ -2339,6 +2340,19 @@ describe("mux.ts", () => {
 });
 
 describe("agent extensions & skills", () => {
+  describe("mergeOverrideList", () => {
+    it("appends override to base with dedupe", () => {
+      assert.equal(mergeOverrideList("read,bash,write,edit", ["grep", "edit"]), "read,bash,write,edit,grep");
+    });
+    it("returns base when override empty", () => {
+      assert.equal(mergeOverrideList("read,bash", undefined), "read,bash");
+      assert.equal(mergeOverrideList("read,bash", []), "read,bash");
+    });
+    it("returns override when base undefined", () => {
+      assert.equal(mergeOverrideList(undefined, ["grep"]), "grep");
+    });
+  });
+
   const testApi = (subagentsModule as any).__test__;
   const { resolveAgentExtensions, buildAgentResourceArgs } = testApi;
 
@@ -2838,19 +2852,28 @@ describe("send_messages coordination helpers", () => {
     it("resolves by name", async () => {
       const testApi = (subagentsModule as any).__test__;
       const runningMap = testApi.runningSubagents as Map<string, any>;
+      const dir = createTestDir();
+      const originalHome = process.env.HOME;
+      process.env.HOME = dir;
       runningMap.set("t1", makeRunning("t1", "TestAgent"));
       try {
         const tool = getSendMessagesTool();
         const result = await tool.execute("tc-1", { name: "TestAgent", messages: ["hello"] });
         assert.match(result.content[0].text, /Delivered 1 message\(s\) to TestAgent/);
       } finally {
+        if (originalHome === undefined) delete process.env.HOME;
+        else process.env.HOME = originalHome;
         runningMap.clear();
+        rmSync(dir, { recursive: true, force: true });
       }
     });
 
     it("resolves by id (preferred over name)", async () => {
       const testApi = (subagentsModule as any).__test__;
       const runningMap = testApi.runningSubagents as Map<string, any>;
+      const dir = createTestDir();
+      const originalHome = process.env.HOME;
+      process.env.HOME = dir;
       runningMap.set("t1", makeRunning("t1", "Agent1"));
       runningMap.set("t2", makeRunning("t2", "Agent2"));
       try {
@@ -2858,7 +2881,10 @@ describe("send_messages coordination helpers", () => {
         const result = await tool.execute("tc-1", { id: "t2", name: "Agent1", messages: ["hello"] });
         assert.match(result.content[0].text, /Delivered 1 message\(s\) to Agent2/);
       } finally {
+        if (originalHome === undefined) delete process.env.HOME;
+        else process.env.HOME = originalHome;
         runningMap.clear();
+        rmSync(dir, { recursive: true, force: true });
       }
     });
 

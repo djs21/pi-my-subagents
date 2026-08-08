@@ -117,6 +117,16 @@ export function parseOptionalBoolean(value: string | undefined): boolean | undef
   return value != null ? value === "true" : undefined;
 }
 
+/**
+ * Merge an override list onto a base comma-separated list (append + dedupe).
+ * Override config ADDS capabilities; it never removes base tools.
+ */
+export function mergeOverrideList(base: string | undefined, override: string[] | undefined): string | undefined {
+  if (!override || override.length === 0) return base;
+  const baseList = (base ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return [...new Set([...baseList, ...override.map((s) => s.trim()).filter(Boolean)])].join(",");
+}
+
 export function parseSessionMode(value: string | undefined): SubagentSessionMode | undefined {
   if (value === "standalone" || value === "lineage-only" || value === "fork") return value;
   return undefined;
@@ -164,9 +174,9 @@ export function discoverAgentDefinitions(): ListedAgentDefinition[] {
       const override = getAgentOverride(process.cwd(), parsed.name);
       if (override) {
         if (override.model) parsed.model = override.model;
-        if (override.extensions) parsed.extensions = override.extensions.join(",");
-        if (override.tools) parsed.tools = override.tools.join(",");
-        if (override.skills) parsed.skills = override.skills.join(",");
+        if (override.extensions) parsed.extensions = mergeOverrideList(parsed.extensions, override.extensions);
+        if (override.tools) parsed.tools = mergeOverrideList(parsed.tools, override.tools);
+        if (override.skills) parsed.skills = mergeOverrideList(parsed.skills, override.skills);
       }
       agents.set(parsed.name, { ...parsed, source });
     }
@@ -211,9 +221,9 @@ export function loadAgentDefaults(agentName: string): AgentDefaults | null {
     const parsed = parseAgentDefinition(readFileSync(p, "utf8"), agentName);
     if (parsed) {
       const override = getAgentOverride(process.cwd(), agentName);
-      if (override?.extensions) parsed.extensions = override.extensions.join(",");
-      if (override?.tools) parsed.tools = override.tools.join(",");
-      if (override?.skills) parsed.skills = override.skills.join(",");
+      if (override?.extensions) parsed.extensions = mergeOverrideList(parsed.extensions, override.extensions);
+      if (override?.tools) parsed.tools = mergeOverrideList(parsed.tools, override.tools);
+      if (override?.skills) parsed.skills = mergeOverrideList(parsed.skills, override.skills);
       if (override?.model) parsed.model = override.model;
       return parsed;
     }

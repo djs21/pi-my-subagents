@@ -15,6 +15,7 @@ import {
   Text,
 } from "@earendil-works/pi-tui";
 import { discoverAgentNames, discoverSkills, discoverTools, formatModelLabel, validateModel, type SkillOption, type ToolOption } from "./discovery.ts";
+import { loadAgentDefaults } from "./agent.ts";
 
 // ─── Config Category Picker ─────────────────────────────────────
 
@@ -327,7 +328,12 @@ export async function editTools(
   ctx: ExtensionCommandContext,
 ): Promise<string[] | undefined> {
   const working = new Set(currentTools ?? []);
-  const available = discoverTools();
+  // Tools already effective (base .md + JSON overrides) are not offered as additions
+  const baseDef = loadAgentDefaults(_agentName);
+  const effectiveTools = new Set(
+    (baseDef?.tools ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+  );
+  const available = discoverTools().filter((t) => !effectiveTools.has(t.value));
 
   while (true) {
     const choice = await ctx.ui.select(`Tools untuk "${_agentName}" (${working.size} aktif):`, buildToolOptions(working, available));
