@@ -274,7 +274,7 @@ export async function editSkills(
 
   while (true) {
     const installed = discoverSkills().filter(
-      (s) => !working.has(s.value) && !baseSkills.has(basename(s.value)),
+      (s) => !baseSkills.has(basename(s.value)),
     );
     const workingBaseNames = new Set(Array.from(working).map((w) => basename(w)));
     const activeCount = new Set([...working, ...Array.from(baseSkills).filter((b) => !workingBaseNames.has(b))]).size;
@@ -348,7 +348,7 @@ export async function editTools(
     (baseDef?.tools ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   );
   while (true) {
-    const available = discoverTools().filter((t) => !baseTools.has(t.value) && !working.has(t.value));
+    const available = discoverTools().filter((t) => !baseTools.has(t.value));
     const activeCount = new Set([...working, ...baseTools]).size;
     const choice = await ctx.ui.select(`Tools untuk "${_agentName}" (${activeCount} aktif):`, buildToolOptions(working, available, baseTools));
     if (!choice || choice === "❌ Batal") return undefined;
