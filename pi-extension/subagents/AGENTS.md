@@ -20,7 +20,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`activity.ts`** — subagent activity recording
 - **`session.ts`** — session file management (read/write/merge)
 - **`agent.ts`** — agent definition loading, defaults resolution, path resolution, config parsing
-- **Tool/skill/extension override = append**: subagent-config.json `tools`/`skills`/`extensions` are ADDED to the agent .md base list (deduped), never replace it. Wizard "Available" list shows only tools not already effective. Wizard "Active" shows base .md tools as 🔒 locked (not removable) plus JSON additions; "Available" = registered tools not yet effective.
+- **Tool/skill/extension override = append**: subagent-config.json `tools`/`skills`/`extensions` are ADDED to the agent .md base list (deduped), never replace it. Wizard "Available" list shows only tools not already effective. Wizard "Active" shows base .md tools as 🔒 locked (not removable) plus JSON additions; "Available" = registered tools not yet effective. Skills editor matches base frontmatter skill names by folder basename.
 - **`prompt-inject.ts`** — `before_agent_start` hook that appends available sub-agents to the system prompt
 - **`interrupt.ts`** — interrupt/signal handling for running subagents
 - **`renderers.ts`** — message renderers for result/status/ping/stalled

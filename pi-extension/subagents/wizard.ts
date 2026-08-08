@@ -14,6 +14,7 @@ import {
   Spacer,
   Text,
 } from "@earendil-works/pi-tui";
+import { basename } from "node:path";
 import { discoverAgentNames, discoverSkills, discoverTools, formatModelLabel, validateModel, type SkillOption, type ToolOption } from "./discovery.ts";
 import { loadBaseAgentDefinition } from "./agent.ts";
 
@@ -265,10 +266,19 @@ export async function editSkills(
   ctx: ExtensionCommandContext,
 ): Promise<string[] | undefined> {
   const working = new Set(currentSkills ?? []);
-  const installed = discoverSkills();
+  // Base .md skills: names from frontmatter, shown locked, never offered as additions
+  const baseDef = loadBaseAgentDefinition(_agentName);
+  const baseSkills = new Set(
+    (baseDef?.skills ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+  );
 
   while (true) {
-    const choice = await ctx.ui.select(`Skills untuk "${_agentName}" (${working.size} aktif):`, buildSkillOptions(working, installed));
+    const installed = discoverSkills().filter(
+      (s) => !working.has(s.value) && !baseSkills.has(basename(s.value)),
+    );
+    const workingBaseNames = new Set(Array.from(working).map((w) => basename(w)));
+    const activeCount = new Set([...working, ...Array.from(baseSkills).filter((b) => !workingBaseNames.has(b))]).size;
+    const choice = await ctx.ui.select(`Skills untuk "${_agentName}" (${activeCount} aktif):`, buildSkillOptions(working, installed, baseSkills));
     if (!choice || choice === "❌ Batal") return undefined;
     if (choice === "✅ Selesai — simpan perubahan") break;
     if (choice.startsWith("🗑️ Hapus skill")) {
@@ -287,13 +297,17 @@ export async function editSkills(
   return Array.from(working);
 }
 
-function buildSkillOptions(working: Set<string>, installed: SkillOption[]): string[] {
+function buildSkillOptions(working: Set<string>, installed: SkillOption[], baseSkills: Set<string>): string[] {
   const opts: string[] = [];
-  if (working.size > 0) {
+  if (working.size > 0 || baseSkills.size > 0) {
     opts.push("━ Active ─");
     for (const v of working) {
       const found = installed.find((i) => i.value === v);
       opts.push(found ? `✅ ${found.label}` : `✅ ${v} (custom)`);
+    }
+    for (const v of baseSkills) {
+      const alreadyWorking = Array.from(working).some((w) => basename(w) === v);
+      if (!alreadyWorking) opts.push(`🔒 ${v} (base)`);
     }
     opts.push("───");
   }
@@ -333,9 +347,8 @@ export async function editTools(
   const baseTools = new Set(
     (baseDef?.tools ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   );
-  const available = discoverTools().filter((t) => !baseTools.has(t.value) && !working.has(t.value));
-
   while (true) {
+    const available = discoverTools().filter((t) => !baseTools.has(t.value) && !working.has(t.value));
     const activeCount = new Set([...working, ...baseTools]).size;
     const choice = await ctx.ui.select(`Tools untuk "${_agentName}" (${activeCount} aktif):`, buildToolOptions(working, available, baseTools));
     if (!choice || choice === "❌ Batal") return undefined;
