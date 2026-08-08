@@ -209,7 +209,8 @@ export function getDefaultSessionDirFor(cwd: string, agentDir: string): string {
 
 // ─── loadAgentDefaults ──────────────────────────────────────────
 
-export function loadAgentDefaults(agentName: string): AgentDefaults | null {
+/** Parse the agent .md definition WITHOUT config overrides. */
+export function loadBaseAgentDefinition(agentName: string): AgentDefaults | null {
   const configDir = getAgentConfigDir();
   const paths = [
     join(process.cwd(), ".pi", "agents", `${agentName}.md`),
@@ -219,16 +220,20 @@ export function loadAgentDefaults(agentName: string): AgentDefaults | null {
   for (const p of paths) {
     if (!existsSync(p)) continue;
     const parsed = parseAgentDefinition(readFileSync(p, "utf8"), agentName);
-    if (parsed) {
-      const override = getAgentOverride(process.cwd(), agentName);
-      if (override?.extensions) parsed.extensions = mergeOverrideList(parsed.extensions, override.extensions);
-      if (override?.tools) parsed.tools = mergeOverrideList(parsed.tools, override.tools);
-      if (override?.skills) parsed.skills = mergeOverrideList(parsed.skills, override.skills);
-      if (override?.model) parsed.model = override.model;
-      return parsed;
-    }
+    if (parsed) return parsed;
   }
   return null;
+}
+
+export function loadAgentDefaults(agentName: string): AgentDefaults | null {
+  const parsed = loadBaseAgentDefinition(agentName);
+  if (!parsed) return null;
+  const override = getAgentOverride(process.cwd(), agentName);
+  if (override?.extensions) parsed.extensions = mergeOverrideList(parsed.extensions, override.extensions);
+  if (override?.tools) parsed.tools = mergeOverrideList(parsed.tools, override.tools);
+  if (override?.skills) parsed.skills = mergeOverrideList(parsed.skills, override.skills);
+  if (override?.model) parsed.model = override.model;
+  return parsed;
 }
 
 /**

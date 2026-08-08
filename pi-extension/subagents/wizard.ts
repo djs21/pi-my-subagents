@@ -15,7 +15,7 @@ import {
   Text,
 } from "@earendil-works/pi-tui";
 import { discoverAgentNames, discoverSkills, discoverTools, formatModelLabel, validateModel, type SkillOption, type ToolOption } from "./discovery.ts";
-import { loadAgentDefaults } from "./agent.ts";
+import { loadBaseAgentDefinition } from "./agent.ts";
 
 // ─── Config Category Picker ─────────────────────────────────────
 
@@ -328,15 +328,16 @@ export async function editTools(
   ctx: ExtensionCommandContext,
 ): Promise<string[] | undefined> {
   const working = new Set(currentTools ?? []);
-  // Tools already effective (base .md + JSON overrides) are not offered as additions
-  const baseDef = loadAgentDefaults(_agentName);
-  const effectiveTools = new Set(
+  // Base .md tools: shown locked in Active, never offered as additions
+  const baseDef = loadBaseAgentDefinition(_agentName);
+  const baseTools = new Set(
     (baseDef?.tools ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   );
-  const available = discoverTools().filter((t) => !effectiveTools.has(t.value));
+  const available = discoverTools().filter((t) => !baseTools.has(t.value) && !working.has(t.value));
 
   while (true) {
-    const choice = await ctx.ui.select(`Tools untuk "${_agentName}" (${working.size} aktif):`, buildToolOptions(working, available));
+    const activeCount = new Set([...working, ...baseTools]).size;
+    const choice = await ctx.ui.select(`Tools untuk "${_agentName}" (${activeCount} aktif):`, buildToolOptions(working, available, baseTools));
     if (!choice || choice === "❌ Batal") return undefined;
     if (choice === "✅ Selesai — simpan perubahan") break;
     if (choice.startsWith("🗑️ Hapus tool")) {
@@ -355,13 +356,16 @@ export async function editTools(
   return Array.from(working);
 }
 
-function buildToolOptions(working: Set<string>, available: ToolOption[]): string[] {
+function buildToolOptions(working: Set<string>, available: ToolOption[], baseTools: Set<string>): string[] {
   const opts: string[] = [];
-  if (working.size > 0) {
+  if (working.size > 0 || baseTools.size > 0) {
     opts.push("━ Active ─");
     for (const v of working) {
       const found = available.find((i) => i.value === v);
       opts.push(found ? `✅ ${found.label}` : `✅ ${v} (custom)`);
+    }
+    for (const v of baseTools) {
+      if (!working.has(v)) opts.push(`🔒 ${v} (base)`);
     }
     opts.push("───");
   }

@@ -2351,6 +2351,9 @@ describe("agent extensions & skills", () => {
     it("returns override when base undefined", () => {
       assert.equal(mergeOverrideList(undefined, ["grep"]), "grep");
     });
+    it("handles whitespace in base and override", () => {
+      assert.equal(mergeOverrideList(" read, bash , write ", [" grep ", "edit"]), "read,bash,write,grep,edit");
+    });
   });
 
   const testApi = (subagentsModule as any).__test__;
