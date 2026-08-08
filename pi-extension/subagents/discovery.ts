@@ -2,7 +2,7 @@ import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import type { ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ToolInfo } from "@earendil-works/pi-coding-agent";
 
 export interface ExtensionOption {
   label: string;
@@ -176,8 +176,15 @@ export interface ToolOption {
   value: string;
 }
 
-export function discoverTools(ctx: ExtensionContext): ToolOption[] {
-  return ctx.getAllTools().map((t: ToolInfo) => ({
+let _pi: ExtensionAPI | null = null;
+
+export function setExtensionApi(api: ExtensionAPI): void {
+  _pi = api;
+}
+
+export function discoverTools(): ToolOption[] {
+  if (!_pi) return [];
+  return _pi.getAllTools().map((t: ToolInfo) => ({
     label: t.name,
     value: t.name,
   }));

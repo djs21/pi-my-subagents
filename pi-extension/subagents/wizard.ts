@@ -327,7 +327,7 @@ export async function editTools(
   ctx: ExtensionCommandContext,
 ): Promise<string[] | undefined> {
   const working = new Set(currentTools ?? []);
-  const available = discoverTools(ctx);
+  const available = discoverTools();
 
   while (true) {
     const choice = await ctx.ui.select(`Tools untuk "${_agentName}" (${working.size} aktif):`, buildToolOptions(working, available));
