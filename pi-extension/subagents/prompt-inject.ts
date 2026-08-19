@@ -24,6 +24,16 @@ const ORCHESTRATION_TOOLS = [
   "- `send_messages` — deliver instructions to a running sub-agent (read via its check_messages).",
 ].join("\n");
 
+const RESUME_CONVENTION = `### Resume-First Convention
+When a sub-agent finishes (subagent_result steer with Session path), default to RESUMING its session for sequential work. Use \`subagent_resume(sessionPath: <path>, agent: "<next-agent>", message: "<instructions>")\` to continue with context.
+
+Typical chain: scout → resume as worker (findings in context) → resume as reviewer (code in context) → resume as worker (feedback in context).
+
+Fresh spawn (subagent tool) only for:
+- The first agent in a chain (no prior session)
+- Tasks completely unrelated to any previous session
+- Parallel sub-agents (to avoid cross-contamination)`;
+
 interface DelegateConfig {
   enabled: boolean;
 }
@@ -86,6 +96,7 @@ function formatAgentSection(agents: ListedAgentDefinition[]): string {
         "- Always pass `agent` param matching the name",
         "- Multiple Workers can run in parallel",
         ORCHESTRATION_TOOLS,
+        RESUME_CONVENTION,
       ].join("\n")
     : [
         "### Guidance",
@@ -93,6 +104,7 @@ function formatAgentSection(agents: ListedAgentDefinition[]): string {
         "- For complex multi-file changes, delegate to Worker for isolation",
         "- For code review → Reviewer",
         ORCHESTRATION_TOOLS,
+        RESUME_CONVENTION,
       ].join("\n");
 
   return [

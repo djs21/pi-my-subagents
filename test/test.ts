@@ -2667,6 +2667,106 @@ describe("prompt-inject", () => {
     }
   });
 
+  it("injects resume-first convention (delegate OFF)", async () => {
+    const { capturedHandlers, api } = createMockExtensionApi();
+    const { registerPromptInject } = await import("../pi-extension/subagents/prompt-inject.ts");
+
+    const previousCwd = process.cwd();
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    const previousSubagentName = process.env.PI_SUBAGENT_NAME;
+    const previousHome = process.env.HOME;
+    delete process.env.PI_SUBAGENT_NAME;
+    const root = mkdtempSync(join(tmpdir(), "pi-test-resume-off-"));
+    const globalDir = join(root, "global");
+    const projectDir = join(root, "project");
+    const projectAgentsDir = join(projectDir, ".pi", "agents");
+    mkdirSync(projectAgentsDir, { recursive: true });
+    mkdirSync(globalDir, { recursive: true });
+    // Empty HOME with no delegate config => delegate OFF
+    const homeDir = join(root, "home");
+    mkdirSync(homeDir, { recursive: true });
+    process.env.HOME = homeDir;
+
+    writeAgentFile(projectAgentsDir, "worker", "name: worker");
+
+    process.chdir(projectDir);
+    process.env.PI_CODING_AGENT_DIR = globalDir;
+    try {
+      registerPromptInject(api as any);
+
+      const handler = capturedHandlers["before_agent_start"];
+      assert.ok(handler, "before_agent_start handler was registered");
+
+      const result = handler({ systemPrompt: "You are a helpful assistant." }, {});
+      const injected = result.systemPrompt;
+
+      assert.ok(injected.includes("### Guidance"), "expected delegate-OFF guidance header");
+      assert.ok(injected.includes("### Resume-First Convention"), "missing resume-first header");
+      assert.ok(injected.includes("subagent_resume"), "missing subagent_resume");
+      assert.ok(injected.includes("sessionPath"), "missing sessionPath");
+      assert.ok(injected.includes("message: \"<instructions>\"") || injected.includes("message"), "missing message");
+      assert.ok(injected.includes("Fresh spawn"), "missing fresh-spawn heading");
+      assert.ok(injected.includes("Typical chain"), "missing typical-chain");
+    } finally {
+      process.chdir(previousCwd);
+      restoreEnvVar("PI_CODING_AGENT_DIR", previousAgentDir);
+      restoreEnvVar("PI_SUBAGENT_NAME", previousSubagentName);
+      restoreEnvVar("HOME", previousHome);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("injects resume-first convention (delegate ON)", async () => {
+    const { capturedHandlers, api } = createMockExtensionApi();
+    const { registerPromptInject } = await import("../pi-extension/subagents/prompt-inject.ts");
+
+    const previousCwd = process.cwd();
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    const previousSubagentName = process.env.PI_SUBAGENT_NAME;
+    const previousHome = process.env.HOME;
+    delete process.env.PI_SUBAGENT_NAME;
+    const root = mkdtempSync(join(tmpdir(), "pi-test-resume-on-"));
+    const globalDir = join(root, "global");
+    const projectDir = join(root, "project");
+    const projectAgentsDir = join(projectDir, ".pi", "agents");
+    mkdirSync(projectAgentsDir, { recursive: true });
+    mkdirSync(globalDir, { recursive: true });
+    // HOME with delegate config enabled => delegate ON
+    const homeDir = join(root, "home");
+    const agentCfgDir = join(homeDir, ".pi", "agent");
+    mkdirSync(agentCfgDir, { recursive: true });
+    writeFileSync(join(agentCfgDir, "subagent-config-main.json"), JSON.stringify({ enabled: true }));
+    process.env.HOME = homeDir;
+
+    writeAgentFile(projectAgentsDir, "worker", "name: worker");
+
+    process.chdir(projectDir);
+    process.env.PI_CODING_AGENT_DIR = globalDir;
+    try {
+      registerPromptInject(api as any);
+
+      const handler = capturedHandlers["before_agent_start"];
+      assert.ok(handler, "before_agent_start handler was registered");
+
+      const result = handler({ systemPrompt: "You are a helpful assistant." }, {});
+      const injected = result.systemPrompt;
+
+      assert.ok(injected.includes("### Rules"), "expected delegate-ON rules header");
+      assert.ok(injected.includes("### Resume-First Convention"), "missing resume-first header");
+      assert.ok(injected.includes("subagent_resume"), "missing subagent_resume");
+      assert.ok(injected.includes("sessionPath"), "missing sessionPath");
+      assert.ok(injected.includes("message: \"<instructions>\"") || injected.includes("message"), "missing message");
+      assert.ok(injected.includes("Fresh spawn"), "missing fresh-spawn heading");
+      assert.ok(injected.includes("Typical chain"), "missing typical-chain");
+    } finally {
+      process.chdir(previousCwd);
+      restoreEnvVar("PI_CODING_AGENT_DIR", previousAgentDir);
+      restoreEnvVar("PI_SUBAGENT_NAME", previousSubagentName);
+      restoreEnvVar("HOME", previousHome);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("re-injects section on second call (replaces existing markers)", async () => {
     const { capturedHandlers, api } = createMockExtensionApi();
     const { registerPromptInject } = await import("../pi-extension/subagents/prompt-inject.ts");
