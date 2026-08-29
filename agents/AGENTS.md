@@ -10,6 +10,7 @@ Bundled agent definitions for the pi-my-subagent extension. Each `.md` file defi
 |-------|------|------|
 | **worker** | `worker.md` | Implements tasks from todos — writes code, runs tests, makes polished commits |
 | **reviewer** | `reviewer.md` | Reviews code for bugs, security issues, correctness |
+| **pnr** | `pnr.md` | Plans and researches tasks — analyzes requirements, explores codebase, produces structured plan + todos |
 
 ## Local Contracts
 
