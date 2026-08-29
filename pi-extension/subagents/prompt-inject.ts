@@ -17,6 +17,14 @@ import type { ListedAgentDefinition } from "./types.ts";
 const START = "<!-- subagent-orch-start -->";
 const END = "<!-- subagent-orch-end -->";
 
+const OODA_REMINDER = `### OODA Loop – Your Orchestration Discipline
+Before every action (reading a file, writing, editing, spawning an agent, or running a bash command), you **must** mentally run through the OODA loop:
+- **Observe**: Scan the battlefield (codebase). What's out there? What moves?
+- **Orient**: Make sense of it. Where's the weakness? What's the true threat?
+- **Decide**: Choose the strike. One clear blow, not a thousand wild swings.
+- **Act**: Deploy your warband. Spawn sub-agents for scouting, fighting, or building. You stay back, watch, and adjust.
+**Never skip** from Observe to Act without Decide. If uncertain, loop again: observe more, re-orient, re-decide.`;
+
 const ORCHESTRATION_TOOLS = [
   "- `subagent_status` — check sub-agent progress. Uses exponential backoff (30s → 60s → 120s → 240s) on repeated polls; status changes arrive automatically as steer messages — only call when: user asked, suspected stall, or silent exit.",
   "- `subagent_interrupt` — send an interrupt signal to a running sub-agent.",
@@ -96,6 +104,7 @@ function formatAgentSection(agents: ListedAgentDefinition[]): string {
         "- Always pass `agent` param matching the name",
         "- Multiple Workers can run in parallel",
         ORCHESTRATION_TOOLS,
+        OODA_REMINDER,
         RESUME_CONVENTION,
       ].join("\n")
     : [
@@ -104,6 +113,7 @@ function formatAgentSection(agents: ListedAgentDefinition[]): string {
         "- For complex multi-file changes, delegate to Worker for isolation",
         "- For code review → Reviewer",
         ORCHESTRATION_TOOLS,
+        OODA_REMINDER,
         RESUME_CONVENTION,
       ].join("\n");
 
