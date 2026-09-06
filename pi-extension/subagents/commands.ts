@@ -203,7 +203,14 @@ function formatConfigText(): string {
   return lines.join("\n");
 }
 
-function formatScopeConfig(config: SubagentConfig): string {
+function formatConfigList(value: unknown, fallback: string): string {
+  if (!value) return fallback;
+  if (Array.isArray(value)) return value.length ? value.join(", ") : fallback;
+  if (typeof value === "string") return value.trim() ? value.trim() : fallback;
+  return String(value);
+}
+
+export function formatScopeConfig(config: SubagentConfig): string {
   const lines: string[] = [];
   if (config.layout) lines.push(`- layout: ${config.layout}`);
   const names = Object.keys(config.agents ?? {});
@@ -218,8 +225,8 @@ function formatScopeConfig(config: SubagentConfig): string {
       [
         `**${name}**`,
         `- model: ${agent.model ?? "(default)"}`,
-        `- tools: ${agent.tools?.length ? agent.tools.join(", ") : "(default)"}`,
-        `- skills: ${agent.skills?.length ? agent.skills.join(", ") : "(none)"}`,
+        `- tools: ${formatConfigList(agent.tools, "(default)")}`,
+        `- skills: ${formatConfigList(agent.skills, "(none)")}`,
       ].join("\n"),
     );
   }

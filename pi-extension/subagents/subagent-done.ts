@@ -10,6 +10,8 @@ import { writeFileSync, readdirSync, readFileSync, unlinkSync, existsSync } from
 import { join } from "node:path";
 import { createSubagentActivityRecorder } from "./activity.ts";
 import { findLastAssistantMessage } from "./session.ts";
+import { parseDeniedTools } from "./enforce.ts";
+export { parseDeniedTools };
 
 export function shouldMarkUserTookOver(agentStarted: boolean): boolean {
   return agentStarted;
@@ -68,13 +70,6 @@ export function findLatestAssistantError(
     };
   }
   return null;
-}
-
-export function parseDeniedTools(rawValue: string | undefined): string[] {
-  return (rawValue ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
 }
 
 export default function (pi: ExtensionAPI) {
@@ -377,16 +372,24 @@ export default function (pi: ExtensionAPI) {
           details: {},
         };
       }
-      const messages: string[] = [];
+      const readEntries: Array<{ file: string; content: string }> = [];
       for (const file of files) {
         try {
-          const content = readFileSync(join(incoming, file), "utf-8");
-          messages.push(content.trim());
-          unlinkSync(join(incoming, file));
+          const content = readFileSync(join(incoming, file), "utf-8").trim();
+          readEntries.push({ file, content });
         } catch {
           // skip files we can't read
         }
       }
+      // Delete all successfully read files (read-all-then-delete atomic pattern)
+      for (const { file } of readEntries) {
+        try {
+          unlinkSync(join(incoming, file));
+        } catch {
+          // best-effort cleanup
+        }
+      }
+      const messages = readEntries.map((e) => e.content);
       const summary = messages.length === 1
         ? `1 message from orchestrator`
         : `${messages.length} messages from orchestrator`;

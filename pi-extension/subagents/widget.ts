@@ -112,6 +112,7 @@ export function renderSubagentWidgetLines(
   width: number,
   statusEnabled: boolean,
 ): string[] {
+  if (width <= 0) return [];
   const count = agents.length;
   const title = "Subagents";
   const info = `${count} running`;

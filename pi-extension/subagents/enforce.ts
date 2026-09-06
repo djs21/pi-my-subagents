@@ -25,6 +25,12 @@ export function resolveDenyTools(agentDefs: AgentDefaults | null): Set<string> {
   }
   return denied;
 }
+export function parseDeniedTools(rawValue: string | undefined): string[] {
+  return (rawValue ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
 
 // ─── Session Resolution ─────────────────────────────────────────
 

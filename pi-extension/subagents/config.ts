@@ -20,7 +20,8 @@ function loadJsonConfig(filePath: string): SubagentConfig | null {
   try {
     const raw = readFileSync(filePath, "utf-8");
     return JSON.parse(raw) as SubagentConfig;
-  } catch {
+  } catch (err: any) {
+    console.warn(`[subagents] Warning: Failed to parse config file at ${filePath}: ${err?.message ?? String(err)}`);
     return null;
   }
 }

@@ -2807,6 +2807,44 @@ describe("prompt-inject", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+  it("warns about tool loss when agent param is not passed in resume convention", async () => {
+    const { capturedHandlers, api } = createMockExtensionApi();
+    const { registerPromptInject } = await import("../pi-extension/subagents/prompt-inject.ts");
+
+    const previousCwd = process.cwd();
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    const previousSubagentName = process.env.PI_SUBAGENT_NAME;
+    delete process.env.PI_SUBAGENT_NAME;
+    const root = mkdtempSync(join(tmpdir(), "pi-test-prompt-warn-"));
+    const globalDir = join(root, "global");
+    const projectDir = join(root, "project");
+    const projectAgentsDir = join(projectDir, ".pi", "agents");
+    mkdirSync(projectAgentsDir, { recursive: true });
+    mkdirSync(globalDir, { recursive: true });
+
+    writeAgentFile(projectAgentsDir, "worker", "name: worker");
+
+    process.chdir(projectDir);
+    process.env.PI_CODING_AGENT_DIR = globalDir;
+    try {
+      registerPromptInject(api as any);
+      const handler = capturedHandlers["before_agent_start"];
+      const result = handler({ systemPrompt: "base prompt" }, {});
+      const injected = result.systemPrompt;
+
+      // Must warn that omitting agent causes tool loss
+      assert.ok(
+        (injected.includes("ALWAYS pass") || injected.includes("always pass")) &&
+        (injected.includes("agent") && injected.includes("param")),
+        "prompt must explicitly warn that agent param is required to avoid tool loss"
+      );
+    } finally {
+      process.chdir(previousCwd);
+      restoreEnvVar("PI_CODING_AGENT_DIR", previousAgentDir);
+      restoreEnvVar("PI_SUBAGENT_NAME", previousSubagentName);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("send_messages coordination helpers", () => {

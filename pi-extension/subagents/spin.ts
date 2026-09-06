@@ -39,9 +39,12 @@ import {
   startWidgetRefresh,
   resetStatusCheckThrottle,
   getCoordDir,
+  statusConfig,
+  generateRandomId,
 } from "./shared.ts";
 import {
   isMuxAvailable,
+  muxSetupHint,
   createSurface,
   renameSurface,
   sendCommand,
@@ -54,17 +57,13 @@ import {
 import {
   getSubagentActivityFile,
 } from "./activity.ts";
-import { createStatusState, loadStatusConfig } from "./status.ts";
+import { createStatusState } from "./status.ts";
 import { startStatusRefresh, observeRunningSubagent } from "./interrupt.ts";
 import { resolveResultPresentation } from "./widget.ts";
 import { Text } from "@earendil-works/pi-tui";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
-
-// ─── Module-level state ─────────────────────────────────────────
-
-const statusConfig = loadStatusConfig();
 
 // ─── launchSubagent ─────────────────────────────────────────────
 
@@ -75,7 +74,7 @@ export async function launchSubagent(
 ): Promise<RunningSubagent> {
   resetStatusCheckThrottle();
   const startTime = Date.now();
-  const id = Math.random().toString(16).slice(2, 10);
+  const id = generateRandomId(4);
 
   // Coordination dir for incoming messages from orchestrator
   const coordDir = getCoordDir(id);
@@ -111,7 +110,7 @@ export async function launchSubagent(
   const sessionDir = getDefaultSessionDirFor(targetCwdForSession, effectiveAgentDir);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 23) + "Z";
-  const uuid = [id, Math.random().toString(16).slice(2, 10), Math.random().toString(16).slice(2, 10), Math.random().toString(16).slice(2, 6)].join("-");
+  const uuid = [id, generateRandomId(4), generateRandomId(4), generateRandomId(2)].join("-");
   const subagentSessionFile = join(sessionDir, `${timestamp}_${uuid}.jsonl`);
 
   const surfacePreCreated = !!options?.surface;
@@ -250,7 +249,7 @@ export async function launchSubagent(
 
   const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
   const piCommand = cdPrefix + envPrefix + parts.join(" ");
-  const nonce = Math.random().toString(16).slice(2, 10);
+  const nonce = generateRandomId(4);
   const sentinelPath = shellEscape(`${subagentSessionFile}.sentinel`);
   const command = `echo '__SUBAGENT_DONE_START_${nonce}__'; ${piCommand}; __PI_SENTINEL_EXIT__=$?; echo '__SUBAGENT_DONE_END_'$__PI_SENTINEL_EXIT__'_${nonce}__'; echo "$__PI_SENTINEL_EXIT__" > ${sentinelPath}`;
   const launchScriptName = `${(params.name || "subagent").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "subagent"}-${id}.sh`;
@@ -303,7 +302,15 @@ export async function executeSubagentTool(
     return { content: [{ type: "text", text: "Error: no session file. Start pi with a persistent session to use subagents." }], details: { error: "no session file" } };
   }
 
-  const running = await launchSubagent(params, ctx);
+  let running: RunningSubagent;
+  try {
+    running = await launchSubagent(params, ctx);
+  } catch (err: any) {
+    return {
+      content: [{ type: "text", text: `Failed to initialize subagent surface: ${err?.message ?? String(err)}. ${muxSetupHint()}` }],
+      details: { error: "mux surface initialization failed" },
+    };
+  }
   const watcherAbort = new AbortController();
   running.abortController = watcherAbort;
 

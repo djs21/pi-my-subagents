@@ -4,7 +4,8 @@
  *
  * Imported by spin.ts and resume.ts. Does NOT import from enforce.ts, agent.ts, spin.ts, or resume.ts.
  */
-import { existsSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readdirSync, rmSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import type { RunningSubagent, SubagentResult } from "./types.ts";
 import {
@@ -47,6 +48,11 @@ export const MAX_PENDING_FILES = 10;
 // ─── Coordination Helpers ───────────────────────────────────────
 
 /** Single source of truth for a subagent's coordination directory. */
+/** Generate crypto-secure random hex string */
+export function generateRandomId(bytes = 4): string {
+  return randomBytes(bytes).toString("hex");
+}
+
 export function getCoordDir(id: string): string {
   return join(process.env.HOME || "/tmp", ".local", "share", "pi", "subagents", id);
 }
@@ -59,7 +65,7 @@ export function writeIncomingMessage(coordDir: string, seq: number, text: string
   const incoming = join(coordDir, "incoming");
   mkdirSync(incoming, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const rand = Math.random().toString(16).slice(2, 6);
+  const rand = generateRandomId(2);
   const filename = `${ts}-${seq}-${rand}.txt`;
   writeFileSync(join(incoming, filename), text, "utf-8");
   return filename;
@@ -209,7 +215,7 @@ export async function watchSubagent(
 
     closeSurface(surface);
     runningSubagents.delete(running.id);
-
+    cleanupSubagentResources(running);
     return {
       name, task, summary, sessionFile,
       exitCode: result.exitCode, elapsed,
@@ -219,7 +225,7 @@ export async function watchSubagent(
   } catch (err: any) {
     try { closeSurface(surface); } catch {}
     runningSubagents.delete(running.id);
-
+    cleanupSubagentResources(running);
     if (signal.aborted) {
       return { name, task, summary: "Subagent cancelled.", exitCode: 1, elapsed: Math.floor((Date.now() - startTime) / 1000), error: "cancelled", sessionFile };
     }
@@ -227,11 +233,32 @@ export async function watchSubagent(
   }
 }
 
+/**
+ * Clean up temporary resources created for a subagent run.
+ * Deletes the coordination directory (incoming messages) and the generated launch script.
+ */
+export function cleanupSubagentResources(running: { id: string; launchScriptFile?: string }): void {
+  try {
+    const coord = getCoordDir(running.id);
+    rmSync(coord, { recursive: true, force: true });
+  } catch {
+    // best-effort cleanup
+  }
+
+  if (running.launchScriptFile) {
+    try {
+      rmSync(running.launchScriptFile, { force: true });
+    } catch {
+      // best-effort cleanup
+    }
+  }
+}
+
 // ─── Widget Wrappers ──────────────────────────────────────────────
 
 let latestCtx: any = null;
 
-const statusConfig = loadStatusConfig();
+export const statusConfig = loadStatusConfig();
 
 export function setLatestCtx(ctx: any) {
   latestCtx = ctx;

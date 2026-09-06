@@ -1,8 +1,8 @@
 import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ToolInfo } from "@earendil-works/pi-coding-agent";
+import { getBundledAgentsDir, getAgentConfigDir } from "./agent.ts";
 
 export interface ExtensionOption {
   label: string;
@@ -16,16 +16,6 @@ export interface SkillOption {
 }
 
 /**
- * Get the directory where bundled agent .md files are located.
- * Resolved relative to the dist directory of this extension.
- */
-function getBundledAgentsDir(): string {
-  const moduleDir = fileURLToPath(new URL(".", import.meta.url));
-  // ../../agents from pi-extension/subagents/
-  return join(moduleDir, "..", "..", "agents");
-}
-
-/**
  * Discover agent names by scanning 3 dirs: bundled, global, project.
  * Deduplicates by name (project > global > bundled).
  */
@@ -35,7 +25,7 @@ export function discoverAgentNames(
   const agentMap = new Map<string, { name: string; description?: string }>();
   const dirs: Array<{ path: string }> = [
     { path: getBundledAgentsDir() },
-    { path: join(homedir(), ".pi", "agent", "agents") },
+    { path: join(getAgentConfigDir(), "agents") },
   ];
   if (projectAgentsDir) {
     dirs.push({ path: projectAgentsDir });

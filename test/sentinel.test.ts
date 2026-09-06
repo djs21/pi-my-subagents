@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-const { interpretSentinelFile } = __pollForExitTest__;
+const { interpretSentinelFile, interpretExitSidecar } = __pollForExitTest__;
 
 function tmpFile(content: string): string {
   const dir = mkdtempSync(join(tmpdir(), "sentinel-test-"));
@@ -26,7 +26,6 @@ describe("mux.ts interpretSentinelFile", () => {
       assert.deepEqual(result, { reason: "sentinel", exitCode: 0 });
     } finally {
       cleanup(path);
-      // Clean up parent dir too
       rmSync(join(path, ".."), { recursive: true, force: true });
     }
   });
@@ -64,5 +63,37 @@ describe("mux.ts interpretSentinelFile", () => {
       cleanup(path);
       rmSync(join(path, ".."), { recursive: true, force: true });
     }
+  });
+});
+
+describe("mux.ts interpretExitSidecar", () => {
+  it("parses done exit sidecar", () => {
+    const result = interpretExitSidecar({ type: "done" });
+    assert.deepEqual(result, { reason: "done", exitCode: 0 });
+  });
+
+  it("parses ping exit sidecar", () => {
+    const result = interpretExitSidecar({ type: "ping", name: "worker-1", message: "ready" });
+    assert.deepEqual(result, {
+      reason: "ping",
+      exitCode: 0,
+      ping: { name: "worker-1", message: "ready" },
+    });
+  });
+
+  it("parses error exit sidecar", () => {
+    const result = interpretExitSidecar({ type: "error", errorMessage: "fatal crash" });
+    assert.deepEqual(result, {
+      reason: "error",
+      exitCode: 1,
+      errorMessage: "fatal crash",
+    });
+  });
+
+  it("falls back gracefully when error sidecar has empty message", () => {
+    const result = interpretExitSidecar({ type: "error", errorMessage: "" });
+    assert.equal(result.reason, "error");
+    assert.equal(result.exitCode, 1);
+    assert.ok(result.errorMessage);
   });
 });

@@ -1,4 +1,4 @@
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync, unlinkSync } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 
@@ -221,4 +221,58 @@ export function mergeNewEntries(
     appendFileSync(targetFile, JSON.stringify(entry) + "\n", "utf8");
   }
   return entries;
+}
+
+/**
+ * Prune stale session files (.jsonl) in a directory.
+ * Files older than maxAgeDays (default: 7) are removed.
+ * If remaining files exceed maxFiles (default: 100), the oldest are pruned.
+ * Returns the number of files deleted.
+ */
+export function pruneStaleSessions(
+  sessionDir: string,
+  options?: { maxAgeDays?: number; maxFiles?: number },
+): number {
+  if (!existsSync(sessionDir)) return 0;
+  const maxAgeDays = options?.maxAgeDays ?? 7;
+  const maxFiles = options?.maxFiles ?? 100;
+  const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  let prunedCount = 0;
+  try {
+    const entries = readdirSync(sessionDir, { withFileTypes: true });
+    const sessionFiles: Array<{ path: string; mtimeMs: number }> = [];
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
+      const filePath = join(sessionDir, entry.name);
+      try {
+        const st = statSync(filePath);
+        if (now - st.mtimeMs > maxAgeMs) {
+          unlinkSync(filePath);
+          prunedCount++;
+        } else {
+          sessionFiles.push({ path: filePath, mtimeMs: st.mtimeMs });
+        }
+      } catch {
+        // skip file on stat/unlink error
+      }
+    }
+
+    // If still over maxFiles, prune oldest files
+    if (sessionFiles.length > maxFiles) {
+      sessionFiles.sort((a, b) => a.mtimeMs - b.mtimeMs);
+      const excess = sessionFiles.slice(0, sessionFiles.length - maxFiles);
+      for (const { path } of excess) {
+        try {
+          unlinkSync(path);
+          prunedCount++;
+        } catch {}
+      }
+    }
+  } catch {
+    // best-effort directory scan
+  }
+  return prunedCount;
 }

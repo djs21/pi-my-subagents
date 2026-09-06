@@ -43,40 +43,45 @@ export function herdrGetPaneWidth(pane: string): number {
 }
 
 /**
- * Equalize widths of all panes in the stack to targetWidth.
- * Mirrors herdrResizeStack but for horizontal resizing.
+ * Helper to resize a set of panes along a given dimension (height or width).
+ * Herdr uses ratio-delta resizing, so we calculate the ratio adjustment from layout dimensions.
  */
-export function herdrResizeWidths(panes: string[], targetWidth: number): void {
+function herdrResizeDimension(
+  panes: string[],
+  targetSize: number,
+  dimension: "height" | "width",
+): void {
   if (panes.length < 2) return;
+
+  const rectProp = dimension === "height" ? "height" : "width";
+  const shrinkDir = dimension === "height" ? "up" : "left";
+  const growDir = dimension === "height" ? "down" : "right";
 
   try {
     for (let i = 0; i < panes.length - 1; i++) {
       const raw = execFileSync("herdr", ["pane", "layout", "--pane", panes[i]], { encoding: "utf8" });
       const data = JSON.parse(raw);
-      const layoutPanes: Array<{ pane_id: string; rect: { width: number } }> =
+      const layoutPanes: Array<{ pane_id: string; rect: { height: number; width: number } }> =
         data?.result?.layout?.panes ?? [];
 
       let remainingTotal = 0;
-      let leftWidth = 0;
+      let firstSize = 0;
       for (let j = i; j < panes.length; j++) {
-        const w = layoutPanes.find((p) => p.pane_id === panes[j])?.rect?.width ?? 0;
-        if (j === i) leftWidth = w;
-        remainingTotal += w;
+        const sz = layoutPanes.find((p) => p.pane_id === panes[j])?.rect?.[rectProp] ?? 0;
+        if (j === i) firstSize = sz;
+        remainingTotal += sz;
       }
 
-      if (remainingTotal <= 0 || leftWidth <= 0) continue;
+      if (remainingTotal <= 0 || firstSize <= 0) continue;
 
-      const currentRatio = leftWidth / remainingTotal;
-      const targetRatio = targetWidth / remainingTotal;
+      const currentRatio = firstSize / remainingTotal;
+      const targetRatio = targetSize / remainingTotal;
 
       if (Math.abs(targetRatio - currentRatio) < 0.01) continue;
 
       const delta = Math.abs(targetRatio - currentRatio);
-
-      // For width resize:
-      // "left" means decrease left pane (move border left), "right" means increase left pane
       const targetPane = currentRatio > targetRatio ? panes[i + 1] : panes[i];
-      const direction = currentRatio > targetRatio ? "left" : "right";
+      const direction = currentRatio > targetRatio ? shrinkDir : growDir;
 
       execFileSync("herdr", [
         "pane", "resize",
@@ -90,67 +95,19 @@ export function herdrResizeWidths(panes: string[], targetWidth: number): void {
   }
 }
 
-export function herdrResizeStack(panes: string[], targetHeight: number): void {
-  if (panes.length < 2) return;
-
-  try {
-    for (let i = 0; i < panes.length - 1; i++) {
-      // Re-fetch layout before each resize for accurate measurements
-      const raw = execFileSync("herdr", ["pane", "layout", "--pane", panes[i]], {
-        encoding: "utf8",
-      });
-      const data = JSON.parse(raw);
-      const layoutPanes: Array<{ pane_id: string; rect: { height: number } }> =
-        data?.result?.layout?.panes ?? [];
-
-      // Sum heights of THIS pane and all panes below it
-      let remainingTotal = 0;
-      let topHeight = 0;
-      for (let j = i; j < panes.length; j++) {
-        const h = layoutPanes.find((p) => p.pane_id === panes[j])?.rect?.height ?? 0;
-        if (j === i) topHeight = h;
-        remainingTotal += h;
-      }
-
-      if (remainingTotal <= 0 || topHeight <= 0) {
-        continue;
-      }
-
-      const currentRatio = topHeight / remainingTotal;
-      const targetRatio = targetHeight / remainingTotal;
-
-      if (Math.abs(targetRatio - currentRatio) < 0.01) {
-        continue;
-      }
-
-      const delta = Math.abs(targetRatio - currentRatio);
-
-      // Herdr: `--pane X --direction up` adjusts border ABOVE X,
-      // `--pane X --direction down` adjusts border BELOW X.
-      //
-      // To adjust border between panes[i] and panes[i+1]:
-      //   - SHRINK panes[i] (currentRatio > targetRatio):
-      //     move border UP using pane BELOW border:
-      //     `--pane panes[i+1] --direction up`
-      //   - GROW panes[i] (currentRatio < targetRatio):
-      //     move border DOWN using pane ABOVE border:
-      //     `--pane panes[i] --direction down`
-      const targetPane = currentRatio > targetRatio ? panes[i + 1] : panes[i];
-      const direction = currentRatio > targetRatio ? "up" : "down";
-
-      execFileSync("herdr", [
-        "pane",
-        "resize",
-        "--direction", direction,
-        "--amount", String(Math.min(delta, 0.8)),
-        "--pane", targetPane,
-      ], { encoding: "utf8" });
-    }
-  } catch (e) {
-    // Best-effort — silently ignore failures
-  }
+/**
+ * Equalize widths of all panes in the stack to targetWidth.
+ */
+export function herdrResizeWidths(panes: string[], targetWidth: number): void {
+  herdrResizeDimension(panes, targetWidth, "width");
 }
 
+/**
+ * Equalize heights of all panes in the stack to targetHeight.
+ */
+export function herdrResizeStack(panes: string[], targetHeight: number): void {
+  herdrResizeDimension(panes, targetHeight, "height");
+}
 /**
  * Create a new tab in a herdr workspace.
  * Returns the default (root) pane ID of the new tab.

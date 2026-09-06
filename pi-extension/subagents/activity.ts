@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 
 export type SubagentActivityPhase = "starting" | "active" | "waiting" | "done";
@@ -205,7 +206,8 @@ export function readSubagentActivityFile(
 export function writeSubagentActivityFile(activityFile: string, activity: SubagentActivityState): void {
   const dir = dirname(activityFile);
   mkdirSync(dir, { recursive: true });
-  const tempFile = join(dir, `${activity.runningChildId}.json.${process.pid}.${activity.sequence}.tmp`);
+  const nonce = randomBytes(2).toString("hex");
+  const tempFile = join(dir, `${activity.runningChildId}.json.${process.pid}.${activity.sequence}.${nonce}.tmp`);
 
   try {
     writeFileSync(tempFile, `${JSON.stringify(activity)}\n`, "utf8");
@@ -316,10 +318,24 @@ export function createSubagentActivityRecorder(params: {
     toolActive: false,
   };
 
-  let disabled = false;
+  const RECORDER_RECOVERY_COOLDOWN_MS = 30_000;
+  let permanentlyDisabled = false;
+  let disabledUntil = 0;
   let failureCount = 0;
   let lastFlushAt = 0;
   let pendingFlush: ReturnType<typeof setTimeout> | null = null;
+
+  function isDisabled(): boolean {
+    if (permanentlyDisabled) return true;
+    if (disabledUntil > 0) {
+      if (now() >= disabledUntil) {
+        disabledUntil = 0;
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
 
   function clearPendingFlush(): void {
     if (!pendingFlush) return;
@@ -328,24 +344,28 @@ export function createSubagentActivityRecorder(params: {
   }
 
   function disable(): void {
-    disabled = true;
+    permanentlyDisabled = true;
     clearPendingFlush();
   }
 
   function flushNow(): void {
-    if (disabled) return;
+    if (isDisabled()) return;
     try {
       writeSubagentActivityFile(activityFile, activity);
       lastFlushAt = now();
       failureCount = 0;
     } catch {
       failureCount += 1;
-      if (failureCount >= MAX_WRITE_FAILURES) disable();
+      if (failureCount >= MAX_WRITE_FAILURES) {
+        disabledUntil = now() + RECORDER_RECOVERY_COOLDOWN_MS;
+        failureCount = 0;
+        clearPendingFlush();
+      }
     }
   }
 
   function scheduleFlush(): void {
-    if (disabled || pendingFlush) return;
+    if (isDisabled() || pendingFlush) return;
 
     const remainingMs = Math.max(0, ACTIVITY_UPDATE_THROTTLE_MS - (now() - lastFlushAt));
     if (remainingMs === 0) {
@@ -364,9 +384,8 @@ export function createSubagentActivityRecorder(params: {
     update: (current: SubagentActivityState, now: number) => void,
     flush: "immediate" | "throttled",
   ): void {
-    if (disabled) return;
+    if (isDisabled()) return;
     if (flush === "immediate") clearPendingFlush();
-
     const observedAt = now();
     activity.latestEvent = latestEvent;
     activity.updatedAt = observedAt;

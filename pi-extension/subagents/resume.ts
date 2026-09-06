@@ -28,6 +28,8 @@ import {
   updateWidget,
   startWidgetRefresh,
   getCoordDir,
+  statusConfig,
+  generateRandomId,
 } from "./shared.ts";
 import {
   loadAgentDefaults,
@@ -38,6 +40,7 @@ import {
 } from "./agent.ts";
 import {
   isMuxAvailable,
+  muxSetupHint,
   createSurface,
   sendLongCommand,
   shellEscape,
@@ -52,7 +55,6 @@ import {
 } from "./activity.ts";
 import {
   createStatusState,
-  loadStatusConfig,
 } from "./status.ts";
 import {
   startStatusRefresh,
@@ -62,9 +64,6 @@ import {
   resolveResultPresentation,
 } from "./widget.ts";
 
-// ─── Module-level state ─────────────────────────────────────────
-
-const statusConfig = loadStatusConfig();
 
 // ─── resolveResumeLaunchBehavior ─────────────────────────────────
 
@@ -128,7 +127,7 @@ export async function executeSubagentResume(
   const name = params.name ?? "Resume";
   const { autoExit, interactive } = resolveResumeLaunchBehavior(params);
   const startTime = Date.now();
-  const id = Math.random().toString(16).slice(2, 10);
+  const id = generateRandomId(4);
 
   // Coordination dir for incoming messages from orchestrator
   const coordDir = getCoordDir(id);
@@ -140,10 +139,16 @@ export async function executeSubagentResume(
   }
 
   const entryCountBefore = getNewEntries(params.sessionPath, 0).length;
-  const surface = createSurface(name);
-
-  // Use shared surfaceReadiness instead of inline polling
-  await surfaceReadiness(surface, { label: "resume" });
+  let surface: string;
+  try {
+    surface = createSurface(name);
+    await surfaceReadiness(surface, { label: "resume" });
+  } catch (err: any) {
+    return {
+      content: [{ type: "text", text: `Failed to initialize terminal multiplexer surface: ${err?.message ?? String(err)}. ${muxSetupHint()}` }],
+      details: { error: "mux surface initialization failed" },
+    };
+  }
 
   const parts = ["pi", "--session", shellEscape(params.sessionPath)];
   const subagentDonePath = join(import.meta.dirname, "subagent-done.ts");
@@ -183,7 +188,7 @@ export async function executeSubagentResume(
   if (denySet.size > 0) resumeEnvParts.push(`PI_DENY_TOOLS=${shellEscape([...denySet].join(","))}`);
   const resumeEnvPrefix = resumeEnvParts.join(" ") + " ";
 
-  const nonce = Math.random().toString(16).slice(2, 10);
+  const nonce = generateRandomId(4);
   const command = `echo '__SUBAGENT_DONE_START_${nonce}__'; ${resumeEnvPrefix}${parts.join(" ")}; echo '__SUBAGENT_DONE_END_'$?'_${nonce}__'`;
   const launchScriptFile = join(artifactDir, "subagent-scripts", `${name.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "resume"}-resume-${Date.now()}.sh`);
   sendLongCommand(surface, command, {

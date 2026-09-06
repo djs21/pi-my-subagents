@@ -1,5 +1,6 @@
 import { execSync, execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
+import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -56,9 +57,18 @@ function isTmuxRuntimeAvailable(): boolean {
 }
 
 export function getMuxBackend(): MuxBackend | null {
+  const pref = muxPreference();
+  if (pref === "herdr" && isHerdrRuntimeAvailable()) return "herdr";
+  if (pref === "tmux" && isTmuxRuntimeAvailable()) return "tmux";
   if (isHerdrRuntimeAvailable()) return "herdr";
   if (isTmuxRuntimeAvailable()) return "tmux";
   return null;
+}
+
+export function isSurfaceValidForBackend(surface: string, backend: MuxBackend): boolean {
+  if (backend === "tmux") return surface.startsWith("%");
+  if (backend === "herdr") return !surface.startsWith("%");
+  return true;
 }
 
 export function isMuxAvailable(): boolean {
@@ -106,10 +116,6 @@ function tailLines(text: string, lines: number): string {
 function envPositiveInteger(name: string, fallback: number): number {
   const value = Number(process.env[name]);
   return Number.isInteger(value) && value > 0 ? value : fallback;
-}
-
-function sleepSync(milliseconds: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
 import {
@@ -254,6 +260,10 @@ export function createSurfaceSplit(
  */
 export function sendCommand(surface: string, command: string): void {
   const backend = requireMuxBackend();
+  if (!isSurfaceValidForBackend(surface, backend)) {
+    console.warn(`[subagents] Warning: Surface ID "${surface}" does not match active mux backend "${backend}". Skipping command.`);
+    return;
+  }
 
   if (backend === "herdr") {
     execFileSync("herdr", ["pane", "run", surface, command], { encoding: "utf8" });
@@ -305,7 +315,7 @@ export function sendLongCommand(
     join(
       tmpdir(),
       "pi-subagent-scripts",
-      `cmd-${Date.now()}-${Math.random().toString(16).slice(2, 8)}.sh`,
+      `cmd-${Date.now()}-${randomBytes(4).toString("hex")}.sh`,
     );
   mkdirSync(dirname(scriptPath), { recursive: true });
 
@@ -379,6 +389,10 @@ export async function readScreenAsync(surface: string, lines = 50): Promise<stri
  */
 export function closeSurface(surface: string): void {
   const backend = requireMuxBackend();
+  if (!isSurfaceValidForBackend(surface, backend)) {
+    console.warn(`[subagents] Warning: Surface ID "${surface}" does not match active mux backend "${backend}". Skipping close.`);
+    return;
+  }
 
   if (backend === "herdr") {
     execFileSync("herdr", ["pane", "close", surface], { encoding: "utf8" });
@@ -534,26 +548,30 @@ export async function pollForExit(
     }
 
     // Fast path: check for .exit sidecar file (written by subagent_done / caller_ping)
+    // TOCTOU-safe: read directly without existsSync guard (EAFP)
     if (options.sessionFile) {
       try {
         const exitFile = `${options.sessionFile}.exit`;
-        if (existsSync(exitFile)) {
-          const data = JSON.parse(readFileSync(exitFile, "utf8"));
-          rmSync(exitFile, { force: true });
-          return interpretExitSidecar(data);
-        }
-      } catch {}
+        const content = readFileSync(exitFile, "utf8");
+        const data = JSON.parse(content);
+        rmSync(exitFile, { force: true });
+        return interpretExitSidecar(data);
+      } catch (err: any) {
+        // ENOENT means file not created yet — expected in normal polling
+        // Other errors (e.g. malformed JSON during partial write) will retry next tick
+      }
     }
 
     // Fast path 2: check for .sentinel file (written by bash launch script,
     // independent of pi — works even when pi crashes in a small pane)
+    // TOCTOU-safe: read directly without existsSync guard (EAFP)
     if (options.sessionFile) {
       try {
         const sentinelFile = `${options.sessionFile}.sentinel`;
-        if (existsSync(sentinelFile)) {
-          return interpretSentinelFile(sentinelFile);
-        }
-      } catch {}
+        return interpretSentinelFile(sentinelFile);
+      } catch (err: any) {
+        // ENOENT means file not created yet — expected in normal polling
+      }
     }
 
     // Slow path: read terminal screen for sentinel (crash detection)
@@ -583,23 +601,29 @@ export async function pollForExit(
         return { reason: "sentinel", exitCode: parseInt(match[1], 10) };
       }
     } catch {
-      // Surface may have been destroyed — check if .exit file appeared in the meantime
+      // Surface may have been destroyed or mux died — check if .exit or .sentinel file appeared in the meantime
       if (options.sessionFile) {
         try {
           const exitFile = `${options.sessionFile}.exit`;
-          if (existsSync(exitFile)) {
-            const data = JSON.parse(readFileSync(exitFile, "utf8"));
-            rmSync(exitFile, { force: true });
-            return interpretExitSidecar(data);
-          }
+          const content = readFileSync(exitFile, "utf8");
+          const data = JSON.parse(content);
+          rmSync(exitFile, { force: true });
+          return interpretExitSidecar(data);
         } catch {}
 
         try {
           const sFile = `${options.sessionFile}.sentinel`;
-          if (existsSync(sFile)) {
-            return interpretSentinelFile(sFile);
-          }
+          return interpretSentinelFile(sFile);
         } catch {}
+      }
+
+      // If mux is no longer available and no sidecar exists, detect mux loss
+      if (!isMuxAvailable()) {
+        return {
+          reason: "error",
+          exitCode: 1,
+          errorMessage: "Terminal multiplexer backend disconnected during subagent execution.",
+        };
       }
     }
 

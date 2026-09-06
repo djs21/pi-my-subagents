@@ -35,6 +35,8 @@ const ORCHESTRATION_TOOLS = [
 const RESUME_CONVENTION = `### Resume-First Convention
 When a sub-agent finishes (subagent_result steer with Session path), default to RESUMING its session for sequential work. Use \`subagent_resume(sessionPath: <path>, agent: "<next-agent>", message: "<instructions>")\` to continue with context.
 
+**ALWAYS pass the \`agent\` param** — omitting it causes the sub-agent to lose access to most tools (write, search, explore, context, files, etc.) because the system cannot auto-detect the agent type.
+
 Typical chain: scout → resume as worker (findings in context) → resume as reviewer (code in context) → resume as worker (feedback in context).
 
 Fresh spawn (subagent tool) only for:

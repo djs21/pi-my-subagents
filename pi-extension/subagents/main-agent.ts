@@ -11,20 +11,27 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
 // ── Config ────────────────────────────────────────────────────────────
 
-interface MainAgentConfig {
+export interface MainAgentConfig {
   enabled: boolean;
   blockedTools: string[];
 }
 
-const CONFIG_PATH = join(homedir(), ".pi", "agent", "subagent-config-main.json");
+export function getMainAgentConfigPath(): string {
+  const baseDir = (process.env.PI_CODING_AGENT_DIR && process.env.PI_CODING_AGENT_DIR.trim())
+    ? process.env.PI_CODING_AGENT_DIR.trim()
+    : join(homedir(), ".pi", "agent");
+  return join(baseDir, "subagent-config-main.json");
+}
+
 const DEFAULT_BLOCKED = ["write", "edit", "bash"];
 
-function loadConfig(): MainAgentConfig {
-  if (!existsSync(CONFIG_PATH)) {
+export function loadConfig(): MainAgentConfig {
+  const configPath = getMainAgentConfigPath();
+  if (!existsSync(configPath)) {
     return { enabled: true, blockedTools: [...DEFAULT_BLOCKED] };
   }
   try {
-    const raw = readFileSync(CONFIG_PATH, "utf-8");
+    const raw = readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(raw);
     return {
       enabled: parsed.enabled !== false,
@@ -38,9 +45,10 @@ function loadConfig(): MainAgentConfig {
   }
 }
 
-function saveConfig(config: MainAgentConfig): boolean {
+export function saveConfig(config: MainAgentConfig): boolean {
   try {
-    writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8");
+    const configPath = getMainAgentConfigPath();
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
     return true;
   } catch {
     return false;
@@ -79,12 +87,11 @@ function buildToolSelectOptions(allTools: string[], blocked: Set<string>): strin
 // ── Guard setup ───────────────────────────────────────────────────────
 
 export function setupMainAgentGuard(pi: ExtensionAPI): void {
-  let config = loadConfig();
-
-  // ── tool_call listener ──
+  // ── tool_call listener with dynamic config reload ──
   pi.on("tool_call", (event, _ctx) => {
     // Sub-agents have PI_SUBAGENT_NAME set — skip
     if (process.env.PI_SUBAGENT_NAME) return undefined;
+    const config = loadConfig();
     if (!config.enabled) return undefined;
     if (config.blockedTools.includes(event.toolName)) {
       return {
@@ -99,6 +106,7 @@ export function setupMainAgentGuard(pi: ExtensionAPI): void {
   pi.registerCommand("delegate", {
     description: "Configure delegate mode — block dangerous tools on main agent",
     handler: async (_args, ctx) => {
+      const config = loadConfig();
       await showDelegateMenu(pi, ctx, config);
     },
   });
