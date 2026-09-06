@@ -1,4 +1,4 @@
-import { appendFileSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 
@@ -17,9 +17,10 @@ export interface MessageEntry extends SessionEntry {
   };
 }
 
-export type SeededSubagentSessionMode = "lineage-only" | "fork";
+export type SeededSubagentSessionMode = "standalone" | "lineage-only" | "fork";
 
-function getForkContentLines(parentSessionFile: string): string[] {
+function getForkContentLines(parentSessionFile?: string): string[] {
+  if (!parentSessionFile || !existsSync(parentSessionFile)) return [];
   const raw = readFileSync(parentSessionFile, "utf8");
   const lines = raw.split("\n").filter((line) => line.trim());
 
@@ -46,25 +47,46 @@ function getForkContentLines(parentSessionFile: string): string[] {
 }
 
 export function seedSubagentSessionFile(params: {
-  mode: SeededSubagentSessionMode;
-  parentSessionFile: string;
+  mode?: SeededSubagentSessionMode;
+  parentSessionFile?: string;
   childSessionFile: string;
   childCwd: string;
+  agent?: string;
 }): void {
-  const header = {
+  const header: Record<string, unknown> = {
     type: "session",
     version: 3,
     id: randomUUID(),
     timestamp: new Date().toISOString(),
     cwd: params.childCwd,
-    parentSession: params.parentSessionFile,
   };
+  if (params.parentSessionFile) {
+    header.parentSession = params.parentSessionFile;
+  }
+  if (params.agent) {
+    header.agent = params.agent;
+  }
   const contentLines =
     params.mode === "fork" ? getForkContentLines(params.parentSessionFile) : [];
   const lines = [JSON.stringify(header), ...contentLines];
 
   mkdirSync(dirname(params.childSessionFile), { recursive: true });
   writeFileSync(params.childSessionFile, lines.join("\n") + "\n", "utf8");
+}
+
+/**
+ * Read the agent name recorded in a session file header, if present.
+ */
+export function getSessionAgent(sessionFile: string): string | null {
+  try {
+    const raw = readFileSync(sessionFile, "utf8");
+    const firstLine = raw.split("\n").find((l) => l.trim());
+    if (!firstLine) return null;
+    const header = JSON.parse(firstLine);
+    return typeof header.agent === "string" && header.agent.trim() ? header.agent.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function readEntries(sessionFile: string): SessionEntry[] {

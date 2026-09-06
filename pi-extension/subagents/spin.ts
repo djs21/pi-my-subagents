@@ -126,14 +126,13 @@ export async function launchSubagent(
 
   const launchBehavior = resolveLaunchBehavior(params, agentDefs);
 
-  if (launchBehavior.seededSessionMode) {
-    seedSubagentSessionFile({
-      mode: launchBehavior.seededSessionMode,
-      parentSessionFile: sessionFile,
-      childSessionFile: subagentSessionFile,
-      childCwd: targetCwdForSession,
-    });
-  }
+  seedSubagentSessionFile({
+    mode: launchBehavior.seededSessionMode ?? "standalone",
+    parentSessionFile: launchBehavior.seededSessionMode ? sessionFile : undefined,
+    childSessionFile: subagentSessionFile,
+    childCwd: targetCwdForSession,
+    agent: resolvedAgent,
+  });
 
   const activityFile = getSubagentActivityFile(artifactDir, id);
   mkdirSync(dirname(activityFile), { recursive: true });

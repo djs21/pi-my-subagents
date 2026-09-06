@@ -16,7 +16,7 @@ import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { dirname, join } from "node:path";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import type { RunningSubagent } from "./types.ts";
+import type { RunningSubagent, AgentDefaults } from "./types.ts";
 import {
   buildSubagentToolAllowlist,
   resolveDenyTools,
@@ -31,6 +31,7 @@ import {
 } from "./shared.ts";
 import {
   loadAgentDefaults,
+  resolveAgentByPrefix,
   getArtifactDir,
   formatElapsed,
   muxUnavailableResult,
@@ -44,6 +45,7 @@ import {
 import {
   getNewEntries,
   findLastAssistantMessage,
+  getSessionAgent,
 } from "./session.ts";
 import {
   getSubagentActivityFile,
@@ -69,6 +71,48 @@ const statusConfig = loadStatusConfig();
 export function resolveResumeLaunchBehavior(params: { autoExit?: boolean }): { autoExit: boolean; interactive: boolean } {
   const autoExit = params.autoExit ?? true;
   return { autoExit, interactive: !autoExit };
+}
+
+// ─── resolveResumeAgent & resolveResumeTools ──────────────────────
+
+export function resolveResumeAgent(params: { agent?: string; sessionPath?: string }): {
+  agentName: string | undefined;
+  agentDefs: AgentDefaults | null;
+  resolvedAgent: string | undefined;
+} {
+  const explicitAgent = params.agent?.trim();
+  const sessionAgent = params.sessionPath ? getSessionAgent(params.sessionPath) : null;
+  const targetAgent = explicitAgent || sessionAgent || undefined;
+
+  let agentDefs: AgentDefaults | null = null;
+  if (targetAgent) {
+    agentDefs = loadAgentDefaults(targetAgent.toLowerCase()) ?? resolveAgentByPrefix(targetAgent.toLowerCase());
+    if (!agentDefs) {
+      console.warn(`[subagents] Resume: agent "${targetAgent}" not found, falling back to worker defaults`);
+      agentDefs = loadAgentDefaults("worker");
+    }
+  } else {
+    agentDefs = loadAgentDefaults("worker");
+  }
+
+  const resolvedAgent = agentDefs?.name ?? targetAgent ?? "worker";
+  return { agentName: targetAgent, agentDefs, resolvedAgent };
+}
+
+export function resolveResumeTools(params: {
+  tools?: string;
+  agent?: string;
+  sessionPath?: string;
+}): {
+  effectiveTools: string | undefined;
+  toolAllowlist: string | null;
+  resolvedAgent: string | undefined;
+  agentDefs: AgentDefaults | null;
+} {
+  const { agentDefs, resolvedAgent } = resolveResumeAgent(params);
+  const effectiveTools = params.tools ?? agentDefs?.tools;
+  const toolAllowlist = buildSubagentToolAllowlist(effectiveTools);
+  return { effectiveTools, toolAllowlist, resolvedAgent, agentDefs };
 }
 
 // ─── executeSubagentResume ───────────────────────────────────────
@@ -110,15 +154,8 @@ export async function executeSubagentResume(
   const activityFile = getSubagentActivityFile(artifactDir, id);
   mkdirSync(dirname(activityFile), { recursive: true });
 
-  // ── Enforcement (P1 fix) ─────────────────────────────────────
-  // Load agent defaults if an agent was specified, for tool enforcement
-  let agentDefs = null;
-  const agentName = params.agent;
-  if (agentName) {
-    agentDefs = loadAgentDefaults(agentName.toLowerCase());
-  }
-  const effectiveTools = params.tools ?? agentDefs?.tools;
-  const toolAllowlist = buildSubagentToolAllowlist(effectiveTools);
+  // ── Enforcement & Tools ──────────────────────────────────────────
+  const { toolAllowlist, resolvedAgent, agentDefs } = resolveResumeTools(params);
   if (toolAllowlist) parts.push("--tools", shellEscape(toolAllowlist));
 
   const denySet = resolveDenyTools(agentDefs);
@@ -141,7 +178,7 @@ export async function executeSubagentResume(
   resumeEnvParts.push(`PI_SUBAGENT_ID=${shellEscape(id)}`);
   resumeEnvParts.push(`PI_SUBAGENT_COORD_DIR=${shellEscape(coordDir)}`);
   resumeEnvParts.push(`PI_SUBAGENT_ACTIVITY_FILE=${shellEscape(activityFile)}`);
-  if (agentName) resumeEnvParts.push(`PI_SUBAGENT_AGENT=${shellEscape(agentName)}`);
+  if (resolvedAgent) resumeEnvParts.push(`PI_SUBAGENT_AGENT=${shellEscape(resolvedAgent)}`);
   if (autoExit) resumeEnvParts.push(`PI_SUBAGENT_AUTO_EXIT=1`);
   if (denySet.size > 0) resumeEnvParts.push(`PI_DENY_TOOLS=${shellEscape([...denySet].join(","))}`);
   const resumeEnvPrefix = resumeEnvParts.join(" ") + " ";
@@ -154,7 +191,7 @@ export async function executeSubagentResume(
     scriptPreamble: [`# Subagent resume script for ${name}`, `# Generated: ${new Date().toISOString()}`, `# Session: ${params.sessionPath}`, `# Surface: ${surface}`, ...(resumeMsgFile ? [`# Resume message file: ${resumeMsgFile}`] : [])].join("\n"),
   });
 
-  const running: RunningSubagent = { id, name, task: params.message ?? "resumed session", surface, startTime, sessionFile: params.sessionPath, launchScriptFile, activityFile, interactive, statusState: createStatusState({ source: "pi", startTimeMs: startTime }) };
+  const running: RunningSubagent = { id, name, task: params.message ?? "resumed session", agent: resolvedAgent, surface, startTime, sessionFile: params.sessionPath, launchScriptFile, activityFile, interactive, statusState: createStatusState({ source: "pi", startTimeMs: startTime }) };
   runningSubagents.set(id, running);
   startWidgetRefresh();
   startStatusRefresh(pi, statusConfig, runningSubagents, updateWidget);
@@ -240,6 +277,7 @@ export function createSubagentResumeTool(pi: ExtensionAPI) {
       message: Type.Optional(Type.String({ description: "Optional message to send after resuming (e.g. follow-up instructions)" })),
       autoExit: Type.Optional(Type.Boolean({ description: "Whether the resumed session should automatically exit after completing its response. Defaults to true for autonomous follow-up work; set false for interactive resumed sessions." })),
       agent: Type.Optional(Type.String({ description: "Agent name to load defaults from (e.g. 'worker', 'reviewer'). Reads agent definition for tool enforcement." })),
+      tools: Type.Optional(Type.String({ description: "Comma-separated tools (overrides agent default)" })),
     }),
     execute: (id: string, params: any, signal: AbortSignal, onUpdate: any, ctx: any) =>
       executeSubagentResume(id, params, signal, onUpdate, ctx, pi),

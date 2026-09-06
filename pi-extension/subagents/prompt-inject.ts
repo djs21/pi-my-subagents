@@ -11,7 +11,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverAgentDefinitions } from "./agent.ts";
+import { discoverAgentDefinitions, getAgentConfigDir } from "./agent.ts";
 import type { ListedAgentDefinition } from "./types.ts";
 
 const START = "<!-- subagent-orch-start -->";
@@ -48,15 +48,22 @@ interface DelegateConfig {
 
 function getDelegateConfig(): DelegateConfig {
   try {
-    const configPath = join(homedir(), ".pi", "agent", "subagent-config-main.json");
-    if (!existsSync(configPath)) return { enabled: false };
-    const raw = readFileSync(configPath, "utf8");
-    return JSON.parse(raw) as DelegateConfig;
+    const homeDir = process.env.HOME || homedir();
+    const candidatePaths = [
+      join(homeDir, ".pi", "agent", "subagent-config-main.json"),
+      join(getAgentConfigDir(), "subagent-config-main.json"),
+    ];
+    for (const configPath of candidatePaths) {
+      if (existsSync(configPath)) {
+        const raw = readFileSync(configPath, "utf8");
+        return JSON.parse(raw) as DelegateConfig;
+      }
+    }
+    return { enabled: false };
   } catch {
     return { enabled: false };
   }
 }
-
 function formatAgentLine(a: ListedAgentDefinition): string {
   const desc = a.description ? ` — ${a.description}` : "";
   const model = a.model ? ` | model: ${a.model}` : "";
