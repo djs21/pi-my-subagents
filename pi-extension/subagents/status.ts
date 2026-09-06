@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const SNAPSHOT_STALLED_AFTER_MS = 60_000;
+const SNAPSHOT_STALLED_AFTER_MS = 60_000;
 /** How long since the last activity update before an active/waiting subagent is considered stalled. */
-export const ACTIVITY_STALLED_AFTER_MS = 120_000;
-export const DEFAULT_STATUS_LINE_LIMIT = 4;
-export const MAX_STATUS_NAME_LENGTH = 72;
-export const MAX_STATUS_LINE_LENGTH = 120;
+const ACTIVITY_STALLED_AFTER_MS = 120_000;
+const DEFAULT_STATUS_LINE_LIMIT = 4;
+const MAX_STATUS_NAME_LENGTH = 72;
+const MAX_STATUS_LINE_LENGTH = 120;
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_STATUS_CONFIG_PATH = join(PACKAGE_ROOT, "config.json");
@@ -131,17 +131,9 @@ function boundStatusLine(line: string): string {
   return truncateText(line.replace(/\s+/g, " ").trim(), MAX_STATUS_LINE_LENGTH);
 }
 
-function snapshotProblemLabel(snapshotState: StatusSnapshotState): string | null {
-  if (snapshotState === "wrong-id") return "wrong activity id";
-  return null;
-}
 
-function activityLabel(snapshot: Pick<StatusSnapshot, "activityLabel" | "activeScope">): string | null {
-  return snapshot.activityLabel ?? snapshot.activeScope;
-}
-
-export const DEFAULT_STATUS_MIN_INTERVAL_MS = 30_000;
-export const MIN_STATUS_MIN_INTERVAL_MS = 1_000;
+const DEFAULT_STATUS_MIN_INTERVAL_MS = 30_000;
+const MIN_STATUS_MIN_INTERVAL_MS = 1_000;
 
 export function parseStatusConfig(rawConfig: unknown, source = "config.json"): StatusConfig {
   const config = requireObject(rawConfig, source, "root");
@@ -172,32 +164,28 @@ export function parseStatusConfig(rawConfig: unknown, source = "config.json"): S
   };
 }
 
-function readStatusConfigFile(configPath: string, examplePath: string): { sourcePath: string; rawConfig: string } {
-  try {
-    return { sourcePath: configPath, rawConfig: readFileSync(configPath, "utf8") };
-  } catch (error) {
-    const errno = error as NodeJS.ErrnoException;
-    if (errno.code !== "ENOENT") throw error;
-  }
-
-  try {
-    return { sourcePath: examplePath, rawConfig: readFileSync(examplePath, "utf8") };
-  } catch (error) {
-    const errno = error as NodeJS.ErrnoException;
-    if (errno.code === "ENOENT") {
-      throw new Error(
-        `Missing subagent status config. Expected ${configPath} or ${examplePath}.`,
-      );
-    }
-    throw error;
-  }
-}
-
 export function loadStatusConfig(
   configPath = DEFAULT_STATUS_CONFIG_PATH,
   examplePath = STATUS_CONFIG_EXAMPLE_PATH,
 ): StatusConfig {
-  const { sourcePath, rawConfig } = readStatusConfigFile(configPath, examplePath);
+  let sourcePath = configPath;
+  let rawConfig: string;
+  try {
+    rawConfig = readFileSync(configPath, "utf8");
+  } catch (error) {
+    const errno = error as NodeJS.ErrnoException;
+    if (errno.code !== "ENOENT") throw error;
+    try {
+      sourcePath = examplePath;
+      rawConfig = readFileSync(examplePath, "utf8");
+    } catch (exampleError) {
+      const exampleErrno = exampleError as NodeJS.ErrnoException;
+      if (exampleErrno.code === "ENOENT") {
+        throw new Error(`Missing subagent status config. Expected ${configPath} or ${examplePath}.`);
+      }
+      throw exampleError;
+    }
+  }
 
   let parsed: unknown;
   try {
@@ -329,7 +317,7 @@ export function forceStatusAfterInterrupt(state: SubagentStatusState, now: numbe
 }
 
 function classifyProblemState(state: SubagentStatusState, now: number): Pick<StatusSnapshot, "kind" | "statusLabel"> {
-  const problemLabel = snapshotProblemLabel(state.snapshotState);
+  const problemLabel = state.snapshotState === "wrong-id" ? "wrong activity id" : null;
   const hasValidSnapshot = state.lastActivityAtMs != null;
 
   if (!hasValidSnapshot) {
@@ -452,7 +440,7 @@ export function advanceStatusState(
 }
 
 function formatActiveDetail(snapshot: StatusSnapshot): string {
-  const label = activityLabel(snapshot);
+  const label = snapshot.activityLabel ?? snapshot.activeScope;
   if (!label) return "active";
   const duration = snapshot.activeDurationText ? ` ${snapshot.activeDurationText}` : "";
   return `active (${label}${duration})`;
@@ -461,12 +449,6 @@ function formatActiveDetail(snapshot: StatusSnapshot): string {
 function formatWaitingDetail(snapshot: StatusSnapshot): string {
   const duration = snapshot.waitingDurationText ? ` ${snapshot.waitingDurationText}` : "";
   return `waiting${duration}`;
-}
-
-function formatStalledDetail(snapshot: StatusSnapshot): string {
-  const detail = snapshot.statusLabel ? ` (${snapshot.statusLabel})` : "";
-  const duration = snapshot.snapshotProblemText ? ` ${snapshot.snapshotProblemText}` : "";
-  return `stalled${duration}${detail}`;
 }
 
 export function formatStatusLine(name: string, snapshot: StatusSnapshot): string {
@@ -494,7 +476,9 @@ export function formatStatusLine(name: string, snapshot: StatusSnapshot): string
     return boundStatusLine(`${boundedName} running ${snapshot.elapsedText}, ${formatWaitingDetail(snapshot)}${problem}.`);
   }
 
-  return boundStatusLine(`${boundedName} running ${snapshot.elapsedText}, ${formatStalledDetail(snapshot)}.`);
+  const detail = snapshot.statusLabel ? ` (${snapshot.statusLabel})` : "";
+  const duration = snapshot.snapshotProblemText ? ` ${snapshot.snapshotProblemText}` : "";
+  return boundStatusLine(`${boundedName} running ${snapshot.elapsedText}, stalled${duration}${detail}.`);
 }
 
 export function formatTransitionLine(

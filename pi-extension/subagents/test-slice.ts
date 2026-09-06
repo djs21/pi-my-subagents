@@ -1,9 +1,3 @@
-/**
- * Test API surface — re-exports internal functions for test assertions.
- * Provides backward-compatible wrappers that close over module state
- * (runningSubagents, updateWidget) so tests don't need to pass them.
- */
-
 import {
   getShellReadyDelayMs,
   loadAgentDefaults,
@@ -21,7 +15,21 @@ import {
   resolveEffectiveSessionMode,
 } from "./enforce.ts";
 import { resolveResumeLaunchBehavior } from "./resume.ts";
-import { runningSubagents, checkStatusThrottle, resetStatusCheckThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot, getStatusThrottleStrikes, getCoordDir, writeIncomingMessage, countPendingFiles, MAX_MESSAGE_CHARS, MAX_MESSAGES_PER_CALL, MAX_PENDING_FILES } from "./shared.ts";
+import {
+  runningSubagents,
+  checkStatusThrottle,
+  resetStatusCheckThrottle,
+  getStatusThrottleRemainingMs,
+  setStatusSnapshot,
+  getStatusSnapshot,
+  getStatusThrottleStrikes,
+  getCoordDir,
+  writeIncomingMessage,
+  countPendingFiles,
+  MAX_MESSAGE_CHARS,
+  MAX_MESSAGES_PER_CALL,
+  MAX_PENDING_FILES,
+} from "./shared.ts";
 import {
   borderLine,
   renderSubagentWidgetLines,
@@ -29,32 +37,10 @@ import {
   updateWidget,
 } from "./widget.ts";
 import {
-  handleSubagentInterrupt as interruptHandleSubagentInterrupt,
-  resolveInterruptTarget as interruptResolveInterruptTarget,
+  handleSubagentInterrupt as rawInterrupt,
+  resolveInterruptTarget as rawResolveTarget,
   requestSubagentInterrupt,
 } from "./interrupt.ts";
-
-// ─── Backward-compatible wrappers ──────────────────────────────
-
-function handleSubagentInterrupt(
-  params: { id?: string; name?: string },
-  sendEscapeKey?: (surface: string) => void,
-  closeSurfaceFn?: (surface: string) => void,
-) {
-  return interruptHandleSubagentInterrupt(
-    params,
-    runningSubagents,
-    () => updateWidget(null, runningSubagents, false),
-    sendEscapeKey ?? (() => {}),
-    closeSurfaceFn ?? (() => {}),
-  );
-}
-
-function resolveInterruptTarget(params: { id?: string; name?: string }) {
-  return interruptResolveInterruptTarget(params, runningSubagents);
-}
-
-// ─── Test API export ───────────────────────────────────────────
 
 export const __test__ = {
   borderLine,
@@ -74,8 +60,12 @@ export const __test__ = {
   runningSubagents,
   formatElapsed,
   resolveResultPresentation,
-  handleSubagentInterrupt,
-  resolveInterruptTarget,
+  handleSubagentInterrupt: (
+    params: { id?: string; name?: string },
+    sendEscapeKey?: (surface: string) => void,
+    closeSurfaceFn?: (surface: string) => void,
+  ) => rawInterrupt(params, runningSubagents, () => updateWidget(null, runningSubagents, false), sendEscapeKey ?? (() => {}), closeSurfaceFn ?? (() => {})),
+  resolveInterruptTarget: (params: { id?: string; name?: string }) => rawResolveTarget(params, runningSubagents),
   requestSubagentInterrupt,
   checkStatusThrottle,
   resetStatusCheckThrottle,

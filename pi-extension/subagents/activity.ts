@@ -106,48 +106,16 @@ export function getSubagentActivityFile(artifactDir: string, runningChildId: str
   return join(artifactDir, "subagent-activity", `${runningChildId}.json`);
 }
 
-function requireObject(value: unknown): Record<string, unknown> | null {
-  if (value == null || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function validateFiniteNumber(object: Record<string, unknown>, fieldName: string): string | null {
-  return Number.isFinite(object[fieldName]) ? null : `${fieldName} must be finite`;
-}
-
-function validateOptionalFiniteNumber(object: Record<string, unknown>, fieldName: string): string | null {
-  const value = object[fieldName];
-  return value == null || Number.isFinite(value) ? null : `${fieldName} must be finite when present`;
-}
-
-function validateInteger(object: Record<string, unknown>, fieldName: string): string | null {
-  return Number.isInteger(object[fieldName]) ? null : `${fieldName} must be an integer`;
-}
-
-function validateOptionalInteger(object: Record<string, unknown>, fieldName: string): string | null {
-  const value = object[fieldName];
-  return value == null || Number.isInteger(value) ? null : `${fieldName} must be an integer when present`;
-}
-
-function validateBoolean(object: Record<string, unknown>, fieldName: string): string | null {
-  return typeof object[fieldName] === "boolean" ? null : `${fieldName} must be a boolean`;
-}
-
-function validateOptionalActivityString(object: Record<string, unknown>, fieldName: string): string | null {
-  const value = object[fieldName];
-  if (value == null) return null;
-  if (typeof value !== "string") return `${fieldName} must be a string when present`;
-  if (/\r|\n/.test(value)) return `${fieldName} must not contain newlines`;
-  return value.length <= MAX_ACTIVITY_STRING_LENGTH ? null : `${fieldName} is too long`;
-}
 
 function invalidActivity(error: string): ActivityReadResult {
   return { ok: false, reason: "invalid", error };
 }
 
 function validateActivity(value: unknown, expectedRunningChildId: string): ActivityReadResult {
-  const object = requireObject(value);
-  if (!object) return invalidActivity("activity must be an object");
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return invalidActivity("activity must be an object");
+  }
+  const object = value as Record<string, unknown>;
   if (object.version !== 1) return invalidActivity("unsupported activity version");
   if (typeof object.runningChildId !== "string") return invalidActivity("runningChildId must be a string");
   if (object.runningChildId !== expectedRunningChildId) return { ok: false, reason: "wrong-id" };
@@ -164,25 +132,37 @@ function validateActivity(value: unknown, expectedRunningChildId: string): Activ
     return invalidActivity("unknown activeScope");
   }
 
-  const validationError = [
-    validateFiniteNumber(object, "createdAt"),
-    validateFiniteNumber(object, "updatedAt"),
-    validateInteger(object, "sequence"),
-    validateBoolean(object, "agentActive"),
-    validateBoolean(object, "turnActive"),
-    validateBoolean(object, "providerActive"),
-    validateBoolean(object, "toolActive"),
-    validateOptionalFiniteNumber(object, "activeSince"),
-    validateOptionalFiniteNumber(object, "waitingSince"),
-    validateOptionalInteger(object, "turnIndex"),
-    validateOptionalFiniteNumber(object, "toolStartedAt"),
-    validateOptionalFiniteNumber(object, "toolEndedAt"),
-    validateOptionalActivityString(object, "messageEventType"),
-    validateOptionalActivityString(object, "toolCallId"),
-    validateOptionalActivityString(object, "toolName"),
-  ].find((error) => error != null);
-  if (validationError) return invalidActivity(validationError);
+  const errors: string[] = [];
+  const checkFinite = (f: string) => { if (!Number.isFinite(object[f])) errors.push(`${f} must be finite`); };
+  const checkInt = (f: string) => { if (!Number.isInteger(object[f])) errors.push(`${f} must be an integer`); };
+  const checkBool = (f: string) => { if (typeof object[f] !== "boolean") errors.push(`${f} must be a boolean`); };
+  const checkOptFinite = (f: string) => { const v = object[f]; if (v != null && !Number.isFinite(v)) errors.push(`${f} must be finite when present`); };
+  const checkOptInt = (f: string) => { const v = object[f]; if (v != null && !Number.isInteger(v)) errors.push(`${f} must be an integer when present`); };
+  const checkOptStr = (f: string) => {
+    const v = object[f];
+    if (v == null) return;
+    if (typeof v !== "string") { errors.push(`${f} must be a string when present`); return; }
+    if (/\r|\n/.test(v)) { errors.push(`${f} must not contain newlines`); return; }
+    if (v.length > MAX_ACTIVITY_STRING_LENGTH) errors.push(`${f} is too long`);
+  };
 
+  checkFinite("createdAt");
+  checkFinite("updatedAt");
+  checkInt("sequence");
+  checkBool("agentActive");
+  checkBool("turnActive");
+  checkBool("providerActive");
+  checkBool("toolActive");
+  checkOptFinite("activeSince");
+  checkOptFinite("waitingSince");
+  checkOptInt("turnIndex");
+  checkOptFinite("toolStartedAt");
+  checkOptFinite("toolEndedAt");
+  checkOptStr("messageEventType");
+  checkOptStr("toolCallId");
+  checkOptStr("toolName");
+
+  if (errors.length > 0) return invalidActivity(errors[0]);
   return { ok: true, activity: object as unknown as SubagentActivityState };
 }
 

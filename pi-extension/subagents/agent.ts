@@ -127,10 +127,6 @@ export function mergeOverrideList(base: string | undefined, override: string[] |
   return [...new Set([...baseList, ...override.map((s) => s.trim()).filter(Boolean)])].join(",");
 }
 
-export function parseSessionMode(value: string | undefined): SubagentSessionMode | undefined {
-  if (value === "standalone" || value === "lineage-only" || value === "fork") return value;
-  return undefined;
-}
 
 export function parseAgentDefinition(content: string, fallbackName: string): AgentDefinition | null {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
@@ -151,7 +147,7 @@ export function parseAgentDefinition(content: string, fallbackName: string): Age
     spawning: parseOptionalBoolean(getFrontmatterValue(frontmatter, "spawning")),
     autoExit: parseOptionalBoolean(getFrontmatterValue(frontmatter, "auto-exit")),
     interactive: parseOptionalBoolean(getFrontmatterValue(frontmatter, "interactive")),
-    sessionMode: parseSessionMode(getFrontmatterValue(frontmatter, "session-mode")),
+    sessionMode: (() => { const v = getFrontmatterValue(frontmatter, "session-mode"); return v === "standalone" || v === "lineage-only" || v === "fork" ? v : undefined; })(),
     cwd: getFrontmatterValue(frontmatter, "cwd"),
     body: body || undefined,
     disableModelInvocation: getFrontmatterValue(frontmatter, "disable-model-invocation")?.toLowerCase() === "true",

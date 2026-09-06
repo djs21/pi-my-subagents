@@ -15,16 +15,6 @@ export interface SubagentConfig {
   layout?: LayoutType;
 }
 
-function loadJsonConfig(filePath: string): SubagentConfig | null {
-  if (!existsSync(filePath)) return null;
-  try {
-    const raw = readFileSync(filePath, "utf-8");
-    return JSON.parse(raw) as SubagentConfig;
-  } catch (err: any) {
-    console.warn(`[subagents] Warning: Failed to parse config file at ${filePath}: ${err?.message ?? String(err)}`);
-    return null;
-  }
-}
 
 /**
  * Get config file path for a given scope.
@@ -40,7 +30,14 @@ export function getConfigPath(scope: "project" | "global", cwd: string): string 
  * Read config for a specific scope only.
  */
 export function readSubagentConfig(scope: "project" | "global", cwd: string): SubagentConfig | null {
-  return loadJsonConfig(getConfigPath(scope, cwd));
+  const filePath = getConfigPath(scope, cwd);
+  if (!existsSync(filePath)) return null;
+  try {
+    return JSON.parse(readFileSync(filePath, "utf-8")) as SubagentConfig;
+  } catch (err: any) {
+    console.warn(`[subagents] Warning: Failed to parse config file at ${filePath}: ${err?.message ?? String(err)}`);
+    return null;
+  }
 }
 
 /**
