@@ -16,12 +16,24 @@
     "@earendil-works/pi-tui": "*",
     "@sinclair/typebox": "*"
   },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    },
+    "@sinclair/typebox": {
+      "optional": true
+    }
+  },
   "pi": {
     "extensions": [
       "./pi-extension/subagents/index.ts"
     ]
   },
   "devDependencies": {
+    "@sinclair/typebox": "^0.34.0",
     "typescript": "^7.0.2"
   }
 }
