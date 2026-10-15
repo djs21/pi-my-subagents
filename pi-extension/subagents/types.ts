@@ -97,7 +97,19 @@ export interface RunningSubagent {
 
 // ─── Constants ──────────────────────────────────────────────────
 
-export const SPAWNING_TOOLS = new Set(["subagent", "subagent_interrupt", "subagents_list", "subagent_resume"]);
+// Orchestrator tools that must never be available to a sub-agent.
+// Sub-agents inherit all other tools by default, but these control the
+// parent's orchestration plane and would let a child spawn/manage siblings.
+export const ORCHESTRATOR_TOOLS = [
+  "subagent",
+  "subagent_resume",
+  "subagent_interrupt",
+  "subagent_status",
+  "subagents_list",
+] as const;
+
+// Backwards-compatible alias used by enforcement code.
+export const SPAWNING_TOOLS = new Set(ORCHESTRATOR_TOOLS);
 // ─── Layout Type ────────────────────────────────────────────────
 
 export type LayoutType = "tiling" | "bottom-stack" | "monocle";

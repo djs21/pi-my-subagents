@@ -27,6 +27,7 @@ import {
 import {
   resolveDenyTools,
   buildSubagentToolAllowlist,
+  buildSubagentToolDenyArgs,
   buildPiPromptArgs,
   resolveLaunchBehavior,
   resolveEffectiveInteractive,
@@ -172,6 +173,13 @@ export async function launchSubagent(
 
   const toolAllowlist = buildSubagentToolAllowlist(effectiveTools);
   if (toolAllowlist) parts.push("--tools", shellEscape(toolAllowlist));
+
+  // Exclude orchestrator tools (and any agent/config deny-tools) at the CLI
+  // level. Sub-agents otherwise inherit the parent environment's full tool
+  // surface, including tools from other extensions.
+  for (const denyArg of buildSubagentToolDenyArgs(denySet)) {
+    parts.push(shellEscape(denyArg));
+  }
 
   // Worker doesn't need project context files (AGENTS.md, CLAUDE.md)
   // Reviewer needs AGENTS.md for codebase mapping

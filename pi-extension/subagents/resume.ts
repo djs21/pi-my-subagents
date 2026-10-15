@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import type { RunningSubagent, AgentDefaults } from "./types.ts";
 import {
   buildSubagentToolAllowlist,
+  buildSubagentToolDenyArgs,
   resolveDenyTools,
 } from "./enforce.ts";
 import {
@@ -158,7 +159,13 @@ export async function executeSubagentResume(
   const { toolAllowlist, resolvedAgent, agentDefs } = resolveResumeTools(params);
   if (toolAllowlist) parts.push("--tools", shellEscape(toolAllowlist));
 
+  // Always deny orchestrator tools (+ frontmatter/config deny-tools) so a
+  // resumed sub-agent cannot spawn or manage siblings. Sub-agents otherwise
+  // inherit the parent environment's full tool surface.
   const denySet = resolveDenyTools(agentDefs);
+  for (const denyArg of buildSubagentToolDenyArgs(denySet)) {
+    parts.push(shellEscape(denyArg));
+  }
 
   // ── Resume message file ──────────────────────────────────────
   let resumeMsgFile: string | undefined;

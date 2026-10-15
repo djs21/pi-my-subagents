@@ -8,6 +8,7 @@ import {
 } from "./agent.ts";
 import {
   buildSubagentToolAllowlist,
+  buildSubagentToolDenyArgs,
   buildPiPromptArgs,
   resolveDenyTools,
   resolveLaunchBehavior,
@@ -48,6 +49,7 @@ export const __test__ = {
   resolveLaunchBehavior,
   resolveEffectiveInteractive,
   buildSubagentToolAllowlist,
+  buildSubagentToolDenyArgs,
   buildPiPromptArgs,
   resolveDenyTools,
   resolveResumeLaunchBehavior,

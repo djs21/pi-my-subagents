@@ -1314,9 +1314,35 @@ describe("subagent discovery", () => {
     );
   });
 
-  it("buildSubagentToolAllowlist defaults to read+bash without an explicit tool restriction", () => {
-    assert.equal(testApi.buildSubagentToolAllowlist(undefined), "caller_ping,subagent_done,read,bash");
-    assert.equal(testApi.buildSubagentToolAllowlist(""), "caller_ping,subagent_done,read,bash");
+  it("buildSubagentToolAllowlist inherits all tools (no allowlist) without an explicit tool restriction", () => {
+    assert.equal(testApi.buildSubagentToolAllowlist(undefined), null);
+    assert.equal(testApi.buildSubagentToolAllowlist(""), null);
+  });
+
+  it("resolveDenyTools always denies the orchestrator tools", () => {
+    const denied = testApi.resolveDenyTools(null);
+    for (const tool of ["subagent", "subagent_resume", "subagent_interrupt", "subagent_status", "subagents_list"]) {
+      assert.equal(denied.has(tool), true, `expected ${tool} to be denied`);
+    }
+  });
+
+  it("resolveDenyTools merges frontmatter deny-tools with the orchestrator set", () => {
+    const denied = testApi.resolveDenyTools({ denyTools: "claude, web_search" });
+    assert.equal(denied.has("claude"), true);
+    assert.equal(denied.has("web_search"), true);
+    assert.equal(denied.has("subagent"), true);
+    assert.equal(denied.has("subagent_status"), true);
+  });
+
+  it("buildSubagentToolDenyArgs emits --exclude-tools for the full deny set", () => {
+    const denied = testApi.resolveDenyTools({ denyTools: "claude" });
+    const args = testApi.buildSubagentToolDenyArgs(denied);
+    assert.equal(args[0], "--exclude-tools");
+    const tools = args[1].split(",");
+    for (const tool of ["subagent", "subagent_resume", "subagent_interrupt", "subagent_status", "subagents_list", "claude"]) {
+      assert.ok(tools.includes(tool), `expected ${tool} in exclude list`);
+    }
+    assert.deepEqual(testApi.buildSubagentToolDenyArgs(new Set()), []);
   });
 
   it("buildPiPromptArgs inserts separator for artifact-backed launches with skills", () => {
@@ -1601,13 +1627,15 @@ describe("tool registration", () => {
     });
   });
 
-  it("expands spawning false to deny subagent interruption", () => {
+  it("always denies orchestrator tools regardless of spawning frontmatter", () => {
     const testApi = (subagentsModule as any).__test__;
     const denied = testApi.resolveDenyTools({ spawning: false });
 
     assert.equal(denied.has("subagent"), true);
     assert.equal(denied.has("subagent_interrupt"), true);
     assert.equal(denied.has("subagent_resume"), true);
+    assert.equal(denied.has("subagent_status"), true);
+    assert.equal(denied.has("subagents_list"), true);
   });
 
   it("renders partial subagent tool-call args without throwing", () => {
@@ -2768,7 +2796,7 @@ describe("prompt-inject", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
-  it("warns about tool loss when agent param is not passed in resume convention", async () => {
+  it("documents that omitted agent param no longer reduces the tool surface", async () => {
     const { capturedHandlers, api } = createMockExtensionApi();
     const { registerPromptInject } = await import("../pi-extension/subagents/prompt-inject.ts");
 
@@ -2793,11 +2821,15 @@ describe("prompt-inject", () => {
       const result = handler({ systemPrompt: "base prompt" }, {});
       const injected = result.systemPrompt;
 
-      // Must warn that omitting agent causes tool loss
+      // New model: sub-agents inherit all environment tools by default, so the
+      // resume convention must NOT claim that omitting `agent` loses tools.
       assert.ok(
-        (injected.includes("ALWAYS pass") || injected.includes("always pass")) &&
-        (injected.includes("agent") && injected.includes("param")),
-        "prompt must explicitly warn that agent param is required to avoid tool loss"
+        injected.includes("inherit all environment tools by default"),
+        "prompt must state that omitted agent still inherits the full tool surface"
+      );
+      assert.ok(
+        !injected.includes("lose access to most tools"),
+        "prompt must not warn about tool loss anymore"
       );
     } finally {
       process.chdir(previousCwd);
