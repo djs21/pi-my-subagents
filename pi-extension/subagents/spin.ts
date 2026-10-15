@@ -38,7 +38,6 @@ import {
   runningSubagents,
   updateWidget,
   startWidgetRefresh,
-  resetStatusCheckThrottle,
   statusConfig,
   generateRandomId,
 } from "./shared.ts";
@@ -72,7 +71,6 @@ export async function launchSubagent(
   ctx: { sessionManager: { getSessionFile(): string | null; getSessionId(): string; getSessionDir(): string }; cwd: string },
   options?: { surface?: string },
 ): Promise<RunningSubagent> {
-  resetStatusCheckThrottle();
   const startTime = Date.now();
   const id = generateRandomId(4);
 

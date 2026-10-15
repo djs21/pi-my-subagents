@@ -22,7 +22,7 @@ Before every action (reading a file, writing, editing, spawning an agent, or run
 **Never skip** from Observe to Act without Decide. If uncertain, loop again: observe more, re-orient, re-decide.`;
 
 const ORCHESTRATION_TOOLS = [
-  "- `subagent_status` — check sub-agent progress. Uses exponential backoff (30s → 60s → 120s → 240s) on repeated polls; status changes arrive automatically as steer messages — only call when: user asked, suspected stall, or silent exit.",
+  "- `subagent_status` — check sub-agent progress. Returns a live snapshot immediately on every call; status changes also arrive automatically as steer messages — call when: user asked, suspected stall, or silent exit.",
   "- `subagent_interrupt` — send an interrupt signal to a running sub-agent.",
   "- `subagents_list` — list all active sub-agents.",
 ].join("\n");

@@ -12,11 +12,11 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`mux-layout.ts`** — layout engine for subagent panes (createTileSurface, equalizePanes, DEFAULT_SPLIT_RATIO). Supports tiling (DWM-style) and bottom-stack layouts via layoutMode parameter. State: lastSubagentSurface, stackPanes.
 - **`monocle.ts`** — monocle layout engine for subagent panes (createMonocleSurface, equalizeMonoclePanes, resetMonocleLayout, getGroupName). First subagent of a type creates a new window; subsequent subagents of same type share that window with equalized heights. State: monocleState Map<string, MonocleGroup>.
 - **`enforce.ts`** — enforcement config builder (buildSubagentToolAllowlist, buildSubagentToolDenyArgs, resolveDenyTools, buildPiPromptArgs, resolveLaunchBehavior, resolveEffectiveInteractive, resolveEffectiveSessionMode). Pure config, no mux/I/O.
-- **`shared.ts`** — shared lifecycle infra (surfaceReadiness, watchSubagent, runningSubagents, getModuleAbortSignal, updateWidget, startWidgetRefresh, setLatestCtx, lastStatusCheckAt, throttleStrikes, effectiveInterval, resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleRemainingMs, getStatusThrottleStrikes, setStatusSnapshot, getStatusSnapshot, generateRandomId). Used by both spin and resume. Throttle state (including backoff strikes), snapshot cache are module-level (per-process, per-session). Backoff doubles cooldown per strike, capped at 8x base.
+- **`shared.ts`** — shared lifecycle infra (surfaceReadiness, watchSubagent, runningSubagents, getModuleAbortSignal, updateWidget, startWidgetRefresh, setLatestCtx, generateRandomId). Used by both spin and resume.
 - **`spin.ts`** — spawn lifecycle (launchSubagent, executeSubagentTool, createSubagentTool, renderSubagentCall/Result). Owns the complete new-sub-agent flow.
 - **`resume.ts`** — resume lifecycle (executeSubagentResume, createSubagentResumeTool, renderSubagentResumeCall/Result, resolveResumeLaunchBehavior). Fixes P1: enforces tools/deny/agent via enforce.ts.
 - **`types.ts`** — core type definitions (SubagentParams, RunningSubagent, SubagentResult, etc.)
-- **`status.ts`** — subagent status state machine (starting → active → waiting → stalled) + config parsing (StatusConfig with minIntervalMs, env override PI_SUBAGENT_STATUS_MIN_INTERVAL_MS, min-bound validation)
+- **`status.ts`** — subagent status state machine (starting → active → waiting → stalled) + config parsing (StatusConfig with enabled + lineLimit)
 - **`activity.ts`** — subagent activity recording
 - **`session.ts`** — session file management (read/write/merge)
 - **`agent.ts`** — agent definition loading, defaults resolution, path resolution, config parsing
@@ -48,7 +48,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - `spin.ts` generates a raw subagent id via `generateRandomId`
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
 - **Resume Tool & Agent Auto-Detection**: `resume.ts:resolveResumeAgent` automatically inspects the target session file's header for the original `agent` name via `session.ts:getSessionAgent`. Fallback chain: explicit `params.agent` → session header `agent` → prefix match → `worker` defaults. `resolveResumeTools` honors explicit `params.tools` as a `--tools` allowlist, otherwise the resumed session inherits the full environment tool surface. Orchestrator tools are always denied on resume.
-- `subagent_status` tool is rate-limited via `shared.ts:checkStatusThrottle()` — min 30s between calls (configurable) with **exponential backoff** (doubles per consecutive throttled call, capped at 8x base). `lastStatusCheckAt` is updated on both pass and throttle paths — each retry restarts the penalty clock. Throttle resets on new spawn via `resetStatusCheckThrottle()` in `spin.ts:launchSubagent`. Throttled responses include `throttled: true` in details, retry time, last-known status snapshot, and penalty text ("Repeated polling extends the cooldown."). Renderer checks `details.throttled` flag to distinguish throttled from genuinely-empty.
+- `subagent_status` tool returns a **live snapshot immediately on every call** — no rate limiting or throttling. Status changes are also auto-delivered as steers. Callers can poll as often as needed; each invocation recomputes state from `runningSubagents`.
 
 ## Work Guidance
 
@@ -57,11 +57,11 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - Resize backends go in `herdr-mux.ts` and `tmux-mux.ts` — dispatch through closures in `mux.ts:createSurface()`
 - All config/agent resolution goes through `agent.ts` and `config.ts`
 - **Sub-agent prompt minimization**: every sub-agent strips unnecessary layers (pi base prompt via `replace`, project context via `--no-context-files`, skills via `--no-skills`, orchestration via `PI_SUBAGENT_NAME` guard). Custom extensions are disabled — only `subagent-done.ts` is injected.
-- **Status tool rate limiting**: `subagent_status` enforces a minimum interval (default 30s, configurable via `status.minIntervalMs` or `PI_SUBAGENT_STATUS_MIN_INTERVAL_MS`). Throttled calls return a short notice. Throttle resets on new spawn. This prevents the main agent from polling excessively and wasting API tokens.
+- **Status tool has no rate limiting**: `subagent_status` always returns a fresh live snapshot on each call. There is no minimum interval, no backoff, and no snapshot cache. The `status` config object only carries `enabled` and `lineLimit`.
 
 ## Verification
 
-- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery, status throttle (checkStatusThrottle, resetStatusCheckThrottle) + getStatusThrottleRemainingMs, setStatusSnapshot/getStatusSnapshot, throttle response rendering (throttled flag, retry time, last-known status), getStatusThrottleStrikes, backoff (effectiveInterval, throttleStrikes, MAX_THROTTLE_STRIKES=3), config parsing (minIntervalMs default/env/config/min-bound)
+- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery, `subagent_status` live-snapshot behavior (immediate returns across repeated calls, no throttled flag), shared.ts export surface (throttle/backoff helpers removed), and config parsing (enabled, lineLimit, rejection of removed `minIntervalMs`)
 - Run: `npm test`
 
 ## Child DOX Index

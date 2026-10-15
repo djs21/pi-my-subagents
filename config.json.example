@@ -1,6 +1,5 @@
 {
   "status": {
-    "enabled": true,
-    "minIntervalMs": 30000
+    "enabled": true
   }
 }

@@ -14,8 +14,6 @@ const INTERNAL_CONSTANTS = [
   "DEFAULT_STATUS_LINE_LIMIT",
   "MAX_STATUS_NAME_LENGTH",
   "MAX_STATUS_LINE_LENGTH",
-  "DEFAULT_STATUS_MIN_INTERVAL_MS",
-  "MIN_STATUS_MIN_INTERVAL_MS",
 ] as const;
 
 describe("status module exports", () => {

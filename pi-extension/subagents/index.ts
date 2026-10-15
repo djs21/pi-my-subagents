@@ -86,7 +86,7 @@ import {
   subagentStalledRenderer,
 } from "./renderers.ts";
 import { createSubagentResumeTool } from "./resume.ts";
-import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget, checkStatusThrottle, getStatusThrottleRemainingMs, setStatusSnapshot, getStatusSnapshot, getStatusThrottleStrikes } from "./shared.ts";
+import { runningSubagents, setLatestCtx, updateWidget as subagentUpdateWidget } from "./shared.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -280,12 +280,11 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       label: "Subagent Status",
       description:
         "Show status of running subagents. " +
-        "RATE LIMITED with exponential backoff (30s→60s→120s→240s). Repeated polling extends the cooldown. Status changes auto-delivered as steers. " +
-        "Only call when: user asked, suspected stall, or silent exit. " +
+        "Returns a live snapshot immediately on every call — no throttling. Status changes are also auto-delivered as steers. " +
         "Optionally filter by id or name.",
       promptSnippet:
         "Show status of running subagents. " +
-        "Rate limited with exponential backoff (30s→60s→120s→240s). Repeated polling extends the cooldown. " +
+        "Returns a live snapshot immediately on every call. " +
         "Status changes auto-deliver as steers. " +
         "Optionally filter by id or name.",
       parameters: Type.Object({
@@ -294,20 +293,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       }),
 
       async execute(_toolCallId, params) {
-        if (!checkStatusThrottle()) {
-          const retryAfter = Math.ceil(getStatusThrottleRemainingMs() / 1000);
-          const strikes = getStatusThrottleStrikes();
-          const snapshot = getStatusSnapshot();
-          const snapshotText = snapshot
-            ? ` Last known: ${snapshot.text} (${Math.round((Date.now() - snapshot.at) / 1000)}s ago).`
-            : "";
-          const penaltyText = strikes > 0 ? ` Repeated polling extends the cooldown.` : "";
-          return {
-            content: [{ type: "text", text: `Rate-limited: next check in ${retryAfter}s.${snapshotText}${penaltyText} Status auto-delivered via steers on change — do not call this tool again before then.` }],
-            details: { agents: [], throttled: true },
-          };
-        }
-
         const { id, name } = params ?? {};
         let entries = Array.from(runningSubagents.entries());
 
@@ -319,7 +304,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         }
 
         if (entries.length === 0) {
-          setStatusSnapshot("No running subagents found.");
           return {
             content: [{ type: "text", text: "No running subagents found." }],
             details: { agents: [] },
@@ -331,8 +315,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           const snapshot = classifyStatus(running.statusState, now);
           return formatStatusLine(running.name, snapshot);
         });
-
-        setStatusSnapshot(lines.join("\n"));
 
         return {
           content: [{ type: "text", text: lines.join("\n") }],
@@ -351,10 +333,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
       renderResult(result, _opts, theme) {
         const details = result.details as any;
-        if (details?.throttled) {
-          const text = result.content?.[0]?.text ?? "Rate-limited.";
-          return new Text(theme.fg("dim", text), 0, 0);
-        }
         const agents = details?.agents ?? [];
         if (agents.length === 0) {
           return new Text(theme.fg("dim", "No running subagents."), 0, 0);

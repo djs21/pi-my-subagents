@@ -50,60 +50,6 @@ export function generateRandomId(bytes = 4): string {
 /** All currently running subagents, keyed by id. */
 export const runningSubagents = new Map<string, RunningSubagent>();
 
-// ─── Status Check Throttle ────────────────────────────────────────
-
-let lastStatusCheckAt = 0;
-let throttleStrikes = 0;
-const MAX_THROTTLE_STRIKES = 3;
-
-function effectiveInterval(): number {
-  return statusConfig.minIntervalMs * 2 ** Math.min(throttleStrikes, MAX_THROTTLE_STRIKES);
-}
-
-export function resetStatusCheckThrottle(): void {
-  lastStatusCheckAt = 0;
-  throttleStrikes = 0;
-}
-
-export function getStatusCheckInterval(): number {
-  return statusConfig.minIntervalMs;
-}
-
-export function checkStatusThrottle(): boolean {
-  const now = Date.now();
-  const interval = effectiveInterval();
-  if (now - lastStatusCheckAt < interval) {
-    lastStatusCheckAt = now;
-    throttleStrikes++;
-    return false;
-  }
-  lastStatusCheckAt = now;
-  throttleStrikes = 0;
-  return true;
-}
-
-export function getStatusThrottleRemainingMs(): number {
-  if (lastStatusCheckAt === 0) return 0;
-  const elapsed = Date.now() - lastStatusCheckAt;
-  return Math.max(0, effectiveInterval() - elapsed);
-}
-
-export function getStatusThrottleStrikes(): number {
-  return throttleStrikes;
-}
-
-// ─── Status Snapshot Cache ────────────────────────────────────────
-
-let lastStatusSnapshot: { at: number; text: string } | null = null;
-
-export function setStatusSnapshot(text: string): void {
-  lastStatusSnapshot = { at: Date.now(), text };
-}
-
-export function getStatusSnapshot(): { at: number; text: string } | null {
-  return lastStatusSnapshot;
-}
-
 // ─── Surface Readiness
 
 /**

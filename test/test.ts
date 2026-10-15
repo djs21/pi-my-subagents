@@ -519,7 +519,6 @@ describe("status.ts", () => {
     assert.deepEqual(disabled, {
       enabled: false,
       lineLimit: 4,
-      minIntervalMs: 30_000,
     });
   });
 
@@ -530,7 +529,6 @@ describe("status.ts", () => {
     assert.deepEqual(config, {
       enabled: true,
       lineLimit: 4,
-      minIntervalMs: 30_000,
     });
   });
 
@@ -547,7 +545,6 @@ describe("status.ts", () => {
       assert.deepEqual(config, {
         enabled: true,
         lineLimit: 4,
-        minIntervalMs: 30_000,
       });
     });
   });
@@ -931,90 +928,100 @@ describe("status.ts", () => {
     assert.doesNotMatch(aggregate, /\/tmp|\.jsonl/);
   });
 
-  it("parseStatusConfig uses default minIntervalMs when not specified", () => {
+  it("parseStatusConfig omits minIntervalMs from the parsed config", () => {
     const config = parseStatusConfig({ status: { enabled: true } });
-    assert.equal(config.minIntervalMs, 30_000);
+    assert.deepEqual(config, { enabled: true, lineLimit: 4 });
+    assert.equal("minIntervalMs" in config, false, "minIntervalMs should no longer exist");
   });
 
-  it("parseStatusConfig accepts minIntervalMs from config", () => {
-    const config = parseStatusConfig({ status: { enabled: true, minIntervalMs: 60_000 } });
-    assert.equal(config.minIntervalMs, 60_000);
+  it("parseStatusConfig rejects the removed minIntervalMs key", () => {
+    assert.throws(
+      () => parseStatusConfig({ status: { enabled: true, minIntervalMs: 60_000 } }),
+      /status has unsupported key\(s\): minIntervalMs/,
+    );
   });
 
-  it("parseStatusConfig rejects minIntervalMs below 1000", () => {
-    assert.throws(() => {
-      parseStatusConfig({ status: { enabled: true, minIntervalMs: 500 } });
-    });
-  });
-
-  it("parseStatusConfig rejects non-numeric minIntervalMs", () => {
-    assert.throws(() => {
-      parseStatusConfig({ status: { enabled: true, minIntervalMs: "not a number" } });
-    });
-  });
-
-  it("parseStatusConfig reads minIntervalMs from env var PI_SUBAGENT_STATUS_MIN_INTERVAL_MS", () => {
+  it("PI_SUBAGENT_STATUS_MIN_INTERVAL_MS no longer affects config", () => {
     const original = process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS;
     try {
       process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS = "5000";
       const config = parseStatusConfig({ status: { enabled: true } });
-      assert.equal(config.minIntervalMs, 5000);
+      assert.deepEqual(config, { enabled: true, lineLimit: 4 });
     } finally {
       if (original === undefined) delete process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS;
       else process.env.PI_SUBAGENT_STATUS_MIN_INTERVAL_MS = original;
     }
   });
 
-  it("parseStatusConfig accepts minIntervalMs", () => {
-    const config = parseStatusConfig({ status: { enabled: true, minIntervalMs: 10000 } });
-    assert.equal(config.minIntervalMs, 10000);
+  it("shared.ts no longer exports throttle/backoff helpers", async () => {
+    const shared = await import("../pi-extension/subagents/shared.ts");
+    for (const name of [
+      "checkStatusThrottle",
+      "resetStatusCheckThrottle",
+      "getStatusThrottleRemainingMs",
+      "getStatusThrottleStrikes",
+      "getStatusCheckInterval",
+      "setStatusSnapshot",
+      "getStatusSnapshot",
+    ]) {
+      assert.equal(name in shared, false, `${name} should be removed from shared.ts`);
+    }
   });
 
-  it("returns throttle notice when called within minIntervalMs", async () => {
-    const { checkStatusThrottle, resetStatusCheckThrottle } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    assert.ok(checkStatusThrottle(), "first call should pass");
-    assert.ok(!checkStatusThrottle(), "second call within interval should be throttled");
+  it("subagent_status returns a live snapshot on every call without throttling", async () => {
+    const { api, registeredTools } = createMockExtensionApi();
+    (subagentsModule as any).default(api);
+    const statusTool = registeredTools.find((t: any) => t.name === "subagent_status");
+    assert.ok(statusTool, "expected subagent_status tool to be registered");
+
+    const shared = await import("../pi-extension/subagents/shared.ts");
+    const runningMap = shared.runningSubagents;
+    runningMap.clear();
+    try {
+      runningMap.set("a1", {
+        id: "a1",
+        name: "Worker",
+        task: "do work",
+        agent: "worker",
+        surface: "pane-1",
+        startTime: Date.now() - 1000,
+        sessionFile: "worker.jsonl",
+        interactive: false,
+        statusState: createStatusState({ source: "pi", startTimeMs: Date.now() - 1000 }),
+      } as any);
+
+      // Repeated calls back-to-back must all return the live snapshot (no throttle/backoff).
+      for (let i = 0; i < 5; i++) {
+        const result = await statusTool.execute("call", {});
+        const details = (result as any).details;
+        assert.equal(details.throttled, undefined, `call ${i + 1} should not be throttled`);
+        assert.equal(details.agents.length, 1, `call ${i + 1} should report the running agent`);
+        assert.equal(details.agents[0].id, "a1");
+        assert.match((result as any).content[0].text, /Worker/);
+      }
+    } finally {
+      runningMap.clear();
+    }
   });
 
-  it("allows check after throttle reset", async () => {
-    const { checkStatusThrottle, resetStatusCheckThrottle } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    assert.ok(checkStatusThrottle(), "first call should pass");
-    resetStatusCheckThrottle();
-    assert.ok(checkStatusThrottle(), "after reset, should pass");
+  it("subagent_status returns empty snapshot immediately when nothing is running", async () => {
+    const { api, registeredTools } = createMockExtensionApi();
+    (subagentsModule as any).default(api);
+    const statusTool = registeredTools.find((t: any) => t.name === "subagent_status");
+    assert.ok(statusTool, "expected subagent_status tool to be registered");
+
+    const shared = await import("../pi-extension/subagents/shared.ts");
+    shared.runningSubagents.clear();
+
+    for (let i = 0; i < 3; i++) {
+      const result = await statusTool.execute("call", {});
+      assert.equal((result as any).details.throttled, undefined);
+      assert.deepEqual((result as any).details.agents, []);
+      assert.equal((result as any).content[0].text, "No running subagents found.");
+    }
   });
 
-  it("setStatusSnapshot/getStatusSnapshot roundtrip", async () => {
-    const { setStatusSnapshot, getStatusSnapshot } = await import("../pi-extension/subagents/shared.ts");
-    const initial = getStatusSnapshot();
-    assert.equal(initial, null, "initial snapshot should be null");
-
-    setStatusSnapshot("3 subagents active");
-    const snap = getStatusSnapshot();
-    assert.ok(snap, "snapshot should be set");
-    assert.equal(snap!.text, "3 subagents active");
-    assert.ok(Date.now() - snap!.at < 1000, "snapshot timestamp should be recent");
-  });
-
-  it("getStatusThrottleRemainingMs returns remaining time", async () => {
-    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    checkStatusThrottle(); // sets timestamp — throttle now active
-    const remaining = getStatusThrottleRemainingMs();
-    assert.ok(remaining >= 29900, `expected ~30000ms remaining, got ${remaining}`);
-    assert.ok(remaining <= 30000, `expected <= 30000ms remaining, got ${remaining}`);
-  });
-
-  it("throttled response includes throttled: true in details", async () => {
-    const { checkStatusThrottle, resetStatusCheckThrottle } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    checkStatusThrottle(); // first call — passes, sets timestamp
-    const result = checkStatusThrottle(); // second call — throttled
-    assert.equal(result, false, "second call should be throttled");
-  });
-
-  it("renderResult renders rate-limit text when throttled (not No running subagents)", () => {
+  it("renderResult renders the empty state (no rate-limit branch)", () => {
     const { api, registeredTools } = createMockExtensionApi();
     (subagentsModule as any).default(api);
     const statusTool = registeredTools.find((t: any) => t.name === "subagent_status");
@@ -1024,78 +1031,13 @@ describe("status.ts", () => {
       fg(_color: string, text: string) { return text; },
       bold(text: string) { return text; },
     };
-    const throttledResult = {
-      content: [{ type: "text", text: "Rate-limited: next check in 25s. Status auto-delivered via steers on change — do not call this tool again before then." }],
-      details: { agents: [], throttled: true },
+    const emptyResult = {
+      content: [{ type: "text", text: "No running subagents found." }],
+      details: { agents: [] },
     };
-    const rendered = statusTool.renderResult(throttledResult as any, {}, theme);
+    const rendered = statusTool.renderResult(emptyResult as any, {}, theme);
     const text = rendered.render(80).join("\n");
-    assert.ok(
-      text.includes("Rate-limited"),
-      `expected rate-limit text in rendered output, got: ${text}`,
-    );
-    assert.ok(
-      !text.includes("No running subagents"),
-      `should NOT show "No running subagents" for throttled response, got: ${text}`,
-    );
-  });
-
-  it("consecutive throttled calls grow remaining time (backoff)", async () => {
-    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    checkStatusThrottle(); // pass — sets timestamp
-    // Simulate consecutive throttled calls
-    checkStatusThrottle(); // strike 1, next interval = 60s
-    const remaining1 = getStatusThrottleRemainingMs();
-    assert.ok(remaining1 >= 50000, `expected ~60s remaining after 1st strike, got ${remaining1}`);
-
-    checkStatusThrottle(); // strike 2, next interval = 120s
-    const remaining2 = getStatusThrottleRemainingMs();
-    assert.ok(remaining2 >= 110000, `expected ~120s remaining after 2nd strike, got ${remaining2}`);
-    assert.ok(remaining2 > remaining1, "remaining time should increase after 2nd strike");
-  });
-
-  it("successful checkStatusThrottle resets backoff strikes", async () => {
-    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleStrikes } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    checkStatusThrottle(); // pass
-    checkStatusThrottle(); // throttle (strike 1)
-    checkStatusThrottle(); // throttle (strike 2)
-    assert.equal(getStatusThrottleStrikes(), 2, "should have 2 strikes");
-    // Manually set lastStatusCheckAt far in the past to allow a pass
-    // (checkStatusThrottle uses lastStatusCheckAt internally, so we just wait... or reset)
-    resetStatusCheckThrottle();
-    checkStatusThrottle(); // pass — resets strikes
-    assert.equal(getStatusThrottleStrikes(), 0, "strikes should reset to 0 after pass");
-  });
-
-  it("resetStatusCheckThrottle resets strikes to 0", async () => {
-    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleStrikes, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    checkStatusThrottle(); // pass
-    checkStatusThrottle(); // throttle (strike 1)
-    assert.equal(getStatusThrottleStrikes(), 1);
-    resetStatusCheckThrottle();
-    assert.equal(getStatusThrottleStrikes(), 0, "strikes reset to 0");
-    assert.equal(getStatusThrottleRemainingMs(), 0, "remaining resets to 0");
-  });
-
-  it("getStatusThrottleRemainingMs returns 0 before any check", async () => {
-    const { resetStatusCheckThrottle, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    assert.equal(getStatusThrottleRemainingMs(), 0, "remaining should be 0 before first call");
-  });
-
-  it("throttle penalty text includes backoff info", async () => {
-    const { resetStatusCheckThrottle, checkStatusThrottle, getStatusThrottleStrikes, getStatusThrottleRemainingMs } = await import("../pi-extension/subagents/shared.ts");
-    resetStatusCheckThrottle();
-    checkStatusThrottle(); // pass
-    // The notice text is built in index.ts execute — verify it includes penalty
-    // when strikes > 0. Since we can't easily call the full tool, verify the
-    // mechanism: strikes > 0 and remaining > base interval
-    checkStatusThrottle(); // throttle, strike 1
-    assert.ok(getStatusThrottleStrikes() >= 1, "should have at least 1 strike");
-    assert.ok(getStatusThrottleRemainingMs() > 30000, "remaining should exceed base 30s due to backoff");
+    assert.ok(text.includes("No running subagents"), `expected empty-state text, got: ${text}`);
   });
 });
 
@@ -2695,9 +2637,8 @@ describe("prompt-inject", () => {
       assert.ok(injected.includes("`subagent_status`"), "missing subagent_status");
       assert.ok(injected.includes("`subagent_interrupt`"), "missing subagent_interrupt");
       assert.ok(injected.includes("`subagents_list`"), "missing subagents_list");
-      assert.ok(injected.includes("backoff"), "missing backoff wording");
-      assert.ok(injected.includes("30s"), "missing 30s");
-      assert.ok(injected.includes("60s"), "missing 60s");
+      assert.ok(injected.includes("live snapshot"), "missing live snapshot wording");
+      assert.doesNotMatch(injected, /backoff/i, "backoff wording should be removed");
       assert.ok(injected.includes("<!-- subagent-orch-start -->"), "missing start marker");
       assert.ok(injected.includes("<!-- subagent-orch-end -->"), "missing end marker");
     } finally {
@@ -2841,12 +2782,14 @@ describe("prompt-inject", () => {
 });
 
 describe("subagent_status description", () => {
-  it("mentions exponential backoff", () => {
+  it("advertises an immediate live snapshot with no rate limiting", () => {
     const { api, registeredTools } = createMockExtensionApi();
     (subagentsModule as any).default(api);
     const tool = registeredTools.find((t: any) => t.name === "subagent_status");
     assert.ok(tool, "expected subagent_status tool");
-    assert.match(tool.description, /exponential backoff/);
-    assert.match(tool.promptSnippet, /exponential backoff/);
+    assert.match(tool.description, /live snapshot/i);
+    assert.match(tool.promptSnippet, /live snapshot/i);
+    assert.doesNotMatch(tool.description, /backoff|rate limit/i);
+    assert.doesNotMatch(tool.promptSnippet, /backoff|rate limit/i);
   });
 });

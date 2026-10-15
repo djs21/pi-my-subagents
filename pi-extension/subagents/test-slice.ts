@@ -18,12 +18,6 @@ import {
 import { resolveResumeLaunchBehavior } from "./resume.ts";
 import {
   runningSubagents,
-  checkStatusThrottle,
-  resetStatusCheckThrottle,
-  getStatusThrottleRemainingMs,
-  setStatusSnapshot,
-  getStatusSnapshot,
-  getStatusThrottleStrikes,
 } from "./shared.ts";
 import {
   borderLine,
@@ -63,10 +57,4 @@ export const __test__ = {
   ) => rawInterrupt(params, runningSubagents, () => updateWidget(null, runningSubagents, false), sendEscapeKey ?? (() => {}), closeSurfaceFn ?? (() => {})),
   resolveInterruptTarget: (params: { id?: string; name?: string }) => rawResolveTarget(params, runningSubagents),
   requestSubagentInterrupt,
-  checkStatusThrottle,
-  resetStatusCheckThrottle,
-  getStatusThrottleRemainingMs,
-  setStatusSnapshot,
-  getStatusSnapshot,
-  getStatusThrottleStrikes,
 };
