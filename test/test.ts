@@ -1252,7 +1252,7 @@ describe("subagent discovery", () => {
   it("buildSubagentToolAllowlist preserves requested tools and adds child control tools", () => {
     assert.equal(
       testApi.buildSubagentToolAllowlist("read,bash,web_search"),
-      "read,bash,web_search,caller_ping,subagent_done",
+      "read,bash,web_search,subagent_done",
     );
   });
 
@@ -1492,17 +1492,6 @@ describe("subagent-done.ts", () => {
 
 describe("mux.ts interpretExitSidecar", () => {
   const { interpretExitSidecar } = __pollForExitTest__;
-
-  it("decodes ping payloads", () => {
-    assert.deepEqual(
-      interpretExitSidecar({ type: "ping", name: "Worker", message: "need help" }),
-      {
-        reason: "ping",
-        exitCode: 0,
-        ping: { name: "Worker", message: "need help" },
-      },
-    );
-  });
 
   it("decodes done payloads", () => {
     assert.deepEqual(interpretExitSidecar({ type: "done" }), {

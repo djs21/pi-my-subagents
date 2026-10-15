@@ -20,7 +20,6 @@ import {
   resolveSubagentPaths,
   getDefaultSessionDirFor,
   getArtifactDir,
-  formatElapsed,
   muxUnavailableResult,
   scanSkillDir,
 } from "./agent.ts";
@@ -133,11 +132,11 @@ export async function launchSubagent(
   const { inheritsConversationContext } = launchBehavior;
 
   const modeHint = agentDefs?.autoExit
-    ? `Complete your task autonomously. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request.`
-    : `Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request.`;
+    ? `Complete your task autonomously. When finished, call the subagent_done tool.`
+    : `Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time.`;
   const summaryInstruction = agentDefs?.autoExit
     ? "IMPORTANT: Before calling subagent_done, your assistant message MUST include a TEXT block that summarizes what you accomplished. Do NOT skip this — the orchestrator uses it as your completion report. A tool call alone (like write or subagent_done) does NOT count as a summary."
-    : "IMPORTANT: Before calling subagent_done, caller_ping, or before the user exits, your assistant message MUST include a TEXT block that summarizes what you accomplished. Do NOT skip this — the orchestrator uses it as your completion report. A tool call alone does NOT count as a summary.";
+    : "IMPORTANT: Before calling subagent_done, or before the user exits, your assistant message MUST include a TEXT block that summarizes what you accomplished. Do NOT skip this — the orchestrator uses it as your completion report. A tool call alone does NOT count as a summary.";
   const denySet = resolveDenyTools(agentDefs);
   const identity = agentDefs?.body ?? params.systemPrompt ?? null;
   const systemPromptMode = agentDefs?.systemPromptMode;
@@ -321,15 +320,6 @@ export async function executeSubagentTool(
   watchSubagent(running, watcherAbort.signal, observeRunningSubagent)
     .then((result) => {
       updateWidget();
-
-      if (result.ping) {
-        const sessionRef = `\n\nSession: ${result.sessionFile}\nResume: pi --session ${result.sessionFile}`;
-        pi.sendMessage(
-          { customType: "subagent_ping", content: `Sub-agent "${result.ping.name}" needs help (${formatElapsed(result.elapsed)}):\n\n${result.ping.message}${sessionRef}`, display: true, details: { name: result.ping.name, message: result.ping.message, agent: running.agent, sessionFile: result.sessionFile } },
-          { triggerTurn: true, deliverAs: "steer" },
-        );
-        return;
-      }
 
       const presentation = resolveResultPresentation(result, running.name);
       pi.sendMessage(

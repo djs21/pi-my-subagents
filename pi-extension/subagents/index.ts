@@ -82,7 +82,6 @@ import {
 import {
   subagentResultRenderer,
   subagentStatusRenderer,
-  subagentPingRenderer,
   subagentStalledRenderer,
 } from "./renderers.ts";
 import { createSubagentResumeTool } from "./resume.ts";
@@ -401,7 +400,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
   // ── subagent_result message renderer ──
   pi.registerMessageRenderer("subagent_result", subagentResultRenderer);
   pi.registerMessageRenderer("subagent_status", subagentStatusRenderer);
-  pi.registerMessageRenderer("subagent_ping", subagentPingRenderer);
   pi.registerMessageRenderer("subagent_stalled", subagentStalledRenderer);
 
 

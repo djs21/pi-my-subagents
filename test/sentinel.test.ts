@@ -72,15 +72,6 @@ describe("mux.ts interpretExitSidecar", () => {
     assert.deepEqual(result, { reason: "done", exitCode: 0 });
   });
 
-  it("parses ping exit sidecar", () => {
-    const result = interpretExitSidecar({ type: "ping", name: "worker-1", message: "ready" });
-    assert.deepEqual(result, {
-      reason: "ping",
-      exitCode: 0,
-      ping: { name: "worker-1", message: "ready" },
-    });
-  });
-
   it("parses error exit sidecar", () => {
     const result = interpretExitSidecar({ type: "error", errorMessage: "fatal crash" });
     assert.deepEqual(result, {

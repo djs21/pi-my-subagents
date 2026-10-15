@@ -70,7 +70,6 @@ export interface SubagentResult {
   elapsed: number;
   error?: string;
   errorMessage?: string;
-  ping?: { name: string; message: string };
 }
 
 export interface RunningSubagent {
@@ -114,4 +113,4 @@ export const SPAWNING_TOOLS = new Set(ORCHESTRATOR_TOOLS);
 
 export type LayoutType = "tiling" | "bottom-stack" | "monocle";
 
-export const SUBAGENT_CONTROL_TOOLS = ["caller_ping", "subagent_done"] as const;
+export const SUBAGENT_CONTROL_TOOLS = ["subagent_done"] as const;

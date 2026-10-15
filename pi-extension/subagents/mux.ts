@@ -482,28 +482,19 @@ export function renameWorkspace(title: string): void {
 
 export interface PollResult {
   /** How the subagent exited */
-  reason: "done" | "ping" | "sentinel" | "error";
+  reason: "done" | "sentinel" | "error";
   /** Shell exit code (from sentinel). 0 for file-based exits. */
   exitCode: number;
-  /** Ping data if reason is "ping" */
-  ping?: { name: string; message: string };
   /** Error message if reason is "error" (auto-retry exhausted, provider overload, etc.) */
   errorMessage?: string;
 }
 
 /**
- * Interpret an `.exit` sidecar payload (written by subagent_done / caller_ping /
+ * Interpret an `.exit` sidecar payload (written by subagent_done /
  * the error path in subagent-done.ts). Centralized so both the fast and slow
  * paths in pollForExit decode the payload the same way.
  */
 function interpretExitSidecar(data: any): PollResult {
-  if (data?.type === "ping") {
-    return {
-      reason: "ping",
-      exitCode: 0,
-      ping: { name: data.name, message: data.message },
-    };
-  }
   if (data?.type === "error") {
     const errorMessage =
       typeof data.errorMessage === "string" && data.errorMessage.trim() !== ""
@@ -528,7 +519,7 @@ export const __pollForExitTest__ = { interpretExitSidecar, interpretSentinelFile
 
 /**
  * Poll until the subagent exits. Checks for a `.exit` sidecar file first
- * (written by subagent_done / caller_ping), falling back to the terminal
+ * (written by subagent_done), falling back to the terminal
  * sentinel for crash detection.
  */
 export async function pollForExit(
@@ -547,7 +538,7 @@ export async function pollForExit(
       throw new Error("Aborted while waiting for subagent to finish");
     }
 
-    // Fast path: check for .exit sidecar file (written by subagent_done / caller_ping)
+    // Fast path: check for .exit sidecar file (written by subagent_done)
     // TOCTOU-safe: read directly without existsSync guard (EAFP)
     if (options.sessionFile) {
       try {

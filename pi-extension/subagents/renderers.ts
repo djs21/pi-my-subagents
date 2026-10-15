@@ -1,5 +1,5 @@
 /**
- * Message renderers for subagent tool results, status updates, and pings.
+ * Message renderers for subagent tool results and status updates.
  * Pure functions — no module state.
  */
 
@@ -116,43 +116,6 @@ export function subagentStatusRenderer(message: any, options: any, theme: Theme)
       }
 
       const box = new Box(1, 1, (text: string) => theme.bg("customMessageBg", text));
-      box.addChild(new Text(contentLines.join("\n"), 0, 0));
-      return ["", ...box.render(width)];
-    },
-  };
-}
-
-// ─── subagent_ping ──────────────────────────────────────────────
-
-export function subagentPingRenderer(message: any, options: any, theme: Theme) {
-  const details = message.details as any;
-  if (!details) return undefined;
-
-  return {
-    render(width: number): string[] {
-      const name = details.name ?? "subagent";
-      const agentTag = details.agent ? theme.fg("dim", ` (${details.agent})`) : "";
-      const bgFn = (text: string) => theme.bg("toolSuccessBg", text);
-
-      const icon = theme.fg("accent", "?");
-      const header = `${icon} ${theme.fg("toolTitle", theme.bold(name))}${agentTag} ${theme.fg("dim", "— needs help")}`;
-
-      const contentLines = [header];
-
-      if (options.expanded) {
-        contentLines.push("");
-        contentLines.push(details.message ?? "");
-        if (details.sessionFile) {
-          contentLines.push("");
-          contentLines.push(theme.fg("dim", `Session: ${details.sessionFile}`));
-        }
-      } else {
-        const preview = (details.message ?? "").split("\n")[0].slice(0, width - 10);
-        contentLines.push(theme.fg("dim", preview));
-        contentLines.push(theme.fg("muted", keyHint("app.tools.expand", "to expand")));
-      }
-
-      const box = new Box(1, 1, bgFn);
       box.addChild(new Text(contentLines.join("\n"), 0, 0));
       return ["", ...box.render(width)];
     },

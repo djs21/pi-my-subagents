@@ -132,7 +132,6 @@ export async function watchSubagent(
     return {
       name, task, summary, sessionFile,
       exitCode: result.exitCode, elapsed,
-      ping: result.ping,
       ...(result.errorMessage ? { errorMessage: result.errorMessage } : {}),
     };
   } catch (err: any) {

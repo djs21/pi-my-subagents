@@ -35,7 +35,6 @@ import {
   loadAgentDefaults,
   resolveAgentByPrefix,
   getArtifactDir,
-  formatElapsed,
   muxUnavailableResult,
 } from "./agent.ts";
 import {
@@ -208,15 +207,6 @@ export async function executeSubagentResume(
   watchSubagent(running, watcherAbort.signal, observeRunningSubagent)
     .then((result) => {
       updateWidget();
-
-      if (result.ping) {
-        const sessionRef = `\n\nSession: ${params.sessionPath}\nResume: pi --session ${params.sessionPath}`;
-        pi.sendMessage(
-          { customType: "subagent_ping", content: `Sub-agent "${result.ping.name}" needs help (${formatElapsed(result.elapsed)}):\n\n${result.ping.message}${sessionRef}`, display: true, details: { name: result.ping.name, message: result.ping.message, sessionFile: params.sessionPath } },
-          { triggerTurn: true, deliverAs: "steer" },
-        );
-        return;
-      }
 
       const allEntries = getNewEntries(params.sessionPath, entryCountBefore);
       const summary = findLastAssistantMessage(allEntries) ?? (result.errorMessage ? `Subagent error: ${result.errorMessage}` : result.exitCode !== 0 ? `Resumed session exited with code ${result.exitCode}` : "Resumed session exited without new output");

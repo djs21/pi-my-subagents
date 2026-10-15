@@ -267,41 +267,6 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerTool({
-    name: "caller_ping",
-    label: "Caller Ping",
-    description:
-      "Send a help request to the parent agent and exit this session. " +
-      "The parent will be notified with your message and can resume this session with a response. " +
-      "Use when you're stuck, need clarification, or need the parent to take action.",
-    parameters: Type.Object({
-      message: Type.String({ description: "What you need help with" }),
-    }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const sessionFile = process.env.PI_SUBAGENT_SESSION;
-      if (!sessionFile) {
-        throw new Error(
-          "caller_ping is only available in subagent contexts. " +
-            "PI_SUBAGENT_SESSION environment variable is not set.",
-        );
-      }
-
-      recorder.callerPing();
-      const exitData = {
-        type: "ping" as const,
-        name: process.env.PI_SUBAGENT_NAME ?? "subagent",
-        message: params.message,
-      };
-      writeFileSync(`${sessionFile}.exit`, JSON.stringify(exitData));
-
-      ctx.shutdown();
-      return {
-        content: [{ type: "text", text: "Ping sent. Session will exit and parent will be notified." }],
-        details: {},
-      };
-    },
-  });
-
-  pi.registerTool({
     name: "subagent_done",
     label: "Subagent Done",
     description:
