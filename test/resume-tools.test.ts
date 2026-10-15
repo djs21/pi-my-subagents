@@ -295,36 +295,6 @@ describe("commands.ts - formatScopeConfig mixed types", () => {
   });
 });
 
-describe("main-agent.ts - dynamic config loading and custom config dir", () => {
-  it("reads config dynamically respecting PI_CODING_AGENT_DIR", async () => {
-    const { loadConfig, saveConfig, getMainAgentConfigPath } = await import("../pi-extension/subagents/main-agent.ts");
-    const dir = mkdtempSync(join(tmpdir(), "main-agent-config-test-"));
-    const originalEnv = process.env.PI_CODING_AGENT_DIR;
-    process.env.PI_CODING_AGENT_DIR = dir;
-
-    try {
-      const configPath = getMainAgentConfigPath();
-      assert.ok(configPath.startsWith(dir), "config path must respect PI_CODING_AGENT_DIR");
-
-      // Initial load -> default
-      const initial = loadConfig();
-      assert.equal(initial.enabled, true);
-
-      // Save new config
-      saveConfig({ enabled: false, blockedTools: ["custom_tool"] });
-
-      // Next load must read the newly saved config dynamically
-      const reloaded = loadConfig();
-      assert.equal(reloaded.enabled, false);
-      assert.deepStrictEqual(reloaded.blockedTools, ["custom_tool"]);
-    } finally {
-      if (originalEnv) process.env.PI_CODING_AGENT_DIR = originalEnv;
-      else delete process.env.PI_CODING_AGENT_DIR;
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
 describe("widget.ts - narrow width rendering", () => {
   it("handles extreme narrow widths without crashing or negative repeats", async () => {
     const { borderLine, borderTop, borderBottom, renderSubagentWidgetLines } = await import("../pi-extension/subagents/widget.ts");

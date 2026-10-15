@@ -3,15 +3,11 @@
  *
  * Registers a before_agent_start hook that injects a reminder about
  * available sub-agents into the system prompt every session.
- * Shows rich agent metadata (model, tools) and conditional rules
- * based on delegate mode (ON = blocked from write/edit).
+ * Shows rich agent metadata (model, tools) and orchestration guidance.
  */
 
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverAgentDefinitions, getAgentConfigDir } from "./agent.ts";
+import { discoverAgentDefinitions } from "./agent.ts";
 import type { ListedAgentDefinition } from "./types.ts";
 
 const START = "<!-- subagent-orch-start -->";
@@ -43,28 +39,6 @@ Fresh spawn (subagent tool) only for:
 - Tasks completely unrelated to any previous session
 - Parallel sub-agents (to avoid cross-contamination)`;
 
-interface DelegateConfig {
-  enabled: boolean;
-}
-
-function getDelegateConfig(): DelegateConfig {
-  try {
-    const homeDir = process.env.HOME || homedir();
-    const candidatePaths = [
-      join(homeDir, ".pi", "agent", "subagent-config-main.json"),
-      join(getAgentConfigDir(), "subagent-config-main.json"),
-    ];
-    for (const configPath of candidatePaths) {
-      if (existsSync(configPath)) {
-        const raw = readFileSync(configPath, "utf8");
-        return JSON.parse(raw) as DelegateConfig;
-      }
-    }
-    return { enabled: false };
-  } catch {
-    return { enabled: false };
-  }
-}
 function formatAgentLine(a: ListedAgentDefinition): string {
   const desc = a.description ? ` — ${a.description}` : "";
   const model = a.model ? ` | model: ${a.model}` : "";
@@ -100,38 +74,23 @@ export function registerPromptInject(pi: ExtensionAPI): void {
 }
 
 function formatAgentSection(agents: ListedAgentDefinition[]): string {
-  const delegateConfig = getDelegateConfig();
   const agentLines = agents.map(formatAgentLine).join("\n\n");
 
-  const rules = delegateConfig.enabled
-    ? [
-        "### Rules",
-        "- You CAN read/grep/bash to explore the codebase",
-        "- You CANNOT write/edit — blocked. Delegate to Worker.",
-        "- For code review → Reviewer",
-        "- Always pass `agent` param matching the name",
-        "- Multiple Workers can run in parallel",
-        ORCHESTRATION_TOOLS,
-        OODA_REMINDER,
-        RESUME_CONVENTION,
-      ].join("\n")
-    : [
-        "### Guidance",
-        "- You CAN write/edit/bash directly",
-        "- For complex multi-file changes, delegate to Worker for isolation",
-        "- For code review → Reviewer",
-        ORCHESTRATION_TOOLS,
-        OODA_REMINDER,
-        RESUME_CONVENTION,
-      ].join("\n");
+  const rules = [
+    "### Guidance",
+    "- You CAN write/edit/bash directly",
+    "- For complex multi-file changes, delegate to Worker for isolation",
+    "- For code review → Reviewer",
+    ORCHESTRATION_TOOLS,
+    OODA_REMINDER,
+    RESUME_CONVENTION,
+  ].join("\n");
 
   return [
     START,
     "## Available Sub-Agents",
     "",
-    delegateConfig.enabled
-      ? "Delegate via the `subagent` tool."
-      : "You are an orchestrator. Delegate specialized work to these sub-agents using the `subagent` tool:",
+    "You are an orchestrator. Delegate specialized work to these sub-agents using the `subagent` tool:",
     "",
     agentLines,
     "",
