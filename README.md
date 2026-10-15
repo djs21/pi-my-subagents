@@ -75,29 +75,29 @@ Use **monocle** for small screens where each sub-agent needs full focus, **tilin
 
 ## Inter-Agent Communication
 
-Sub-agents notify the orchestrator when they need help by exiting with a sidecar file that carries their request.
+Sub-agents report back to the orchestrator by calling `subagent_done()`, which writes a sidecar exit file and ends the session. This single tool carries the outcome in both cases — whether the sub-agent completed successfully or needs to report a problem (e.g. stuck, blocked, or in need of clarification).
 
 ### How It Works
 
 ```
-Sub-agent calls caller_ping()  →  writes sidecar exit file  →  exits
-                               ↓
-Orchestrator sees the ping    →  resumes the session with a response
+Sub-agent calls subagent_done()  →  writes sidecar exit file  →  exits
+                                 ↓
+Orchestrator sees the result     →  reads the outcome (done or blocked)
 ```
 
 ### For the Sub-Agent
 
-When stuck, in need of clarification, or when the parent must take action, call `caller_ping(message)`. The session exits and the orchestrator is notified with your message.
+When your work is complete, call `subagent_done(message)` to summarize what you accomplished. When you are stuck, blocked, or in need of clarification, call `subagent_done(message)` as well — the same tool carries your report so the orchestrator understands the state. In both cases the session exits and the orchestrator is notified with your message.
 
 ### For the Orchestrator (Main Agent)
 
-A `subagent_result` steer message with the ping payload arrives automatically. Resume the sub-agent's session with `subagent_resume` to answer.
+A `subagent_result` steer message with the payload arrives automatically, describing whether the sub-agent finished or reported a blocker. Resume the sub-agent's session with `subagent_resume` if you need to continue the conversation.
 
 ### Direction Summary
 
 | Direction | Mechanism | Tool |
 |-----------|-----------|------|
-| Sub-agent → Main | Sidecar exit file | `caller_ping()` |
+| Sub-agent → Main | Sidecar exit file | `subagent_done()` |
 
 ## Configuration — `subagent-config.json`
 
