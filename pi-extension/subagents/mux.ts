@@ -153,10 +153,7 @@ export function createSurface(name: string, layout?: LayoutType): string {
   const validatedLayout = validLayouts.includes(effectiveLayout) ? effectiveLayout : "tiling";
 
   if (validatedLayout === "monocle") {
-    // Monocle: create window/tab per agent type
-    const splitFn = (name: string, direction: "left" | "right" | "up" | "down", fromSurface?: string, ratio?: number) =>
-      createSurfaceSplit(name, direction, fromSurface, ratio);
-
+    // Monocle: every subagent gets its own dedicated fullscreen window/tab.
     const createWindowFn = (windowName: string): string => {
       if (backend === "herdr") {
         const wsId = process.env.HERDR_WORKSPACE_ID;
@@ -177,12 +174,7 @@ export function createSurface(name: string, layout?: LayoutType): string {
       return [];
     };
 
-    const getSizeFn = backend === "herdr" ? herdrGetPaneHeight : tmuxGetPaneHeight;
-    const resizeFn = backend === "herdr" ? herdrResizeStack : tmuxResizeStack;
-
-    return createMonocleSurface(
-      name, splitFn, createWindowFn, getWindowPanesFn, getSizeFn, resizeFn,
-    );
+    return createMonocleSurface(name, createWindowFn, getWindowPanesFn);
   }
 
   if (validatedLayout === "bottom-stack") {

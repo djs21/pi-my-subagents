@@ -2623,6 +2623,86 @@ describe("mux-layout.ts equalize stack", () => {
   });
 });
 
+// ── Pure Monocle Layout ────────────────────────────────────────────
+
+import {
+  resetMonocleLayout,
+  createMonocleSurface,
+  getMonocleWindow,
+} from "../pi-extension/subagents/monocle.ts";
+
+describe("monocle.ts pure fullscreen layout", () => {
+  let createWindowCalls: Array<{ windowName: string }> = [];
+  let windowPanesReturns: Record<string, string[]> = {};
+
+  function mockCreateWindowFn(windowName: string): string {
+    createWindowCalls.push({ windowName });
+    return `win-${windowName}-${createWindowCalls.length}`;
+  }
+
+  function mockGetWindowPanesFn(windowId: string): string[] {
+    return windowPanesReturns[windowId] ?? [];
+  }
+
+  beforeEach(() => {
+    createWindowCalls = [];
+    windowPanesReturns = {};
+    resetMonocleLayout();
+  });
+
+  it("gives each subagent its own dedicated window with the default pane", () => {
+    windowPanesReturns["win-scout-1"] = ["pane-scout-default"];
+    const result = createMonocleSurface("scout", mockCreateWindowFn, mockGetWindowPanesFn);
+
+    assert.equal(result, "pane-scout-default");
+    assert.equal(createWindowCalls.length, 1);
+    assert.equal(createWindowCalls[0].windowName, "scout");
+    assert.equal(getMonocleWindow("pane-scout-default"), "win-scout-1");
+  });
+
+  it("does not group same-named subagents — each gets its own window", () => {
+    windowPanesReturns["win-scout-1"] = ["pane-scout-default"];
+    const first = createMonocleSurface("scout", mockCreateWindowFn, mockGetWindowPanesFn);
+
+    windowPanesReturns["win-scout-2"] = ["pane-scout-default-2"];
+    const second = createMonocleSurface("scout", mockCreateWindowFn, mockGetWindowPanesFn);
+
+    assert.equal(first, "pane-scout-default");
+    assert.equal(second, "pane-scout-default-2");
+    assert.equal(createWindowCalls.length, 2);
+    assert.equal(getMonocleWindow("pane-scout-default"), "win-scout-1");
+    assert.equal(getMonocleWindow("pane-scout-default-2"), "win-scout-2");
+  });
+
+  it("uses the agent name verbatim (no numeric suffix stripping)", () => {
+    windowPanesReturns["win-scout-1-1"] = ["pane-a"];
+    createMonocleSurface("scout-1", mockCreateWindowFn, mockGetWindowPanesFn);
+
+    windowPanesReturns["win-planner-2-2"] = ["pane-b"];
+    createMonocleSurface("planner-2", mockCreateWindowFn, mockGetWindowPanesFn);
+
+    assert.equal(createWindowCalls[0].windowName, "scout-1");
+    assert.equal(createWindowCalls[1].windowName, "planner-2");
+  });
+
+  it("resetMonocleLayout clears window tracking", () => {
+    windowPanesReturns["win-scout-1"] = ["pane-scout-default"];
+    createMonocleSurface("scout", mockCreateWindowFn, mockGetWindowPanesFn);
+    assert.equal(getMonocleWindow("pane-scout-default"), "win-scout-1");
+
+    resetMonocleLayout();
+    assert.equal(getMonocleWindow("pane-scout-default"), undefined);
+  });
+
+  it("throws when the new window has no default pane", () => {
+    windowPanesReturns["win-scout-1"] = [];
+    assert.throws(
+      () => createMonocleSurface("scout", mockCreateWindowFn, mockGetWindowPanesFn),
+      /No default pane in new window/,
+    );
+  });
+});
+
 describe("prompt-inject", () => {
   it("injects a section containing all three orchestration tool names", async () => {
     const { capturedHandlers, api } = createMockExtensionApi();

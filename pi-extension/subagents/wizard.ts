@@ -423,7 +423,7 @@ export async function editLayout(
   const choice = await ctx.ui.select("Pilih layout pane:", [
     currentLayout === "tiling" ? "✅ tiling — Master di kiri, sub-agent bertumpuk di kanan (current)" : "⬜ tiling — Master di kiri, sub-agent bertumpuk di kanan",
     currentLayout === "bottom-stack" ? "✅ bottom-stack — Master di atas, sub-agent horizontal di bawah (current)" : "⬜ bottom-stack — Master di atas, sub-agent horizontal di bawah",
-    currentLayout === "monocle" ? "✅ monocle — Setiap agent type di window/tab sendiri (current)" : "⬜ monocle — Setiap agent type di window/tab sendiri",
+    currentLayout === "monocle" ? "✅ monocle — Setiap subagent di window/tab fullscreen sendiri (current)" : "⬜ monocle — Setiap subagent di window/tab fullscreen sendiri",
     "❌ Batal",
   ]);
   if (!choice || choice === "❌ Batal") return undefined;

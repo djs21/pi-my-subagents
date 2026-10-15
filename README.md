@@ -69,7 +69,7 @@ Sub-agents can be arranged in the multiplexer using one of three layouts:
 |--------|-------------|
 | **tiling** | Agents split the terminal in a tiled grid — all visible at once. |
 | **bottom-stack** | Main agent fills most of the screen; sub-agents stack in a bottom pane. |
-| **monocle** | Setiap agent type mendapat window/tab sendiri dalam session/workspace yang sama. Multiple instance dalam tipe yang sama dikelompokkan dalam satu window. Cocok untuk layar kecil — setiap sub-agent mendapat full screen. |
+| **monocle** | Setiap sub-agent mendapat window/tab fullscreen sendiri di session/workspace yang sama — tanpa pengelompokan nama atau sub-split. Cocok untuk layar kecil — setiap sub-agent mendapat ruang pandang maksimal. |
 
 Use **monocle** for small screens where each sub-agent needs full focus, **tiling** when you want a simultaneous overview, and **bottom-stack** when the main session should stay maximised.
 
