@@ -99,7 +99,7 @@ Before every action, Orc must cycle through:
 | Path | Purpose |
 |------|---------|
 | `pi-extension/subagents/AGENTS.md` | Core extension — mux backend, lifecycle, layout, status, tools, widget, config |
-| `agents/AGENTS.md` | Bundled agent definitions (worker, reviewer) |
+| `agents/AGENTS.md` | Bundled agent definitions (worker, reviewer, pnr) |
 
 ### Contents owned by root
 
