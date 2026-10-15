@@ -6,8 +6,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
-import { writeFileSync, readdirSync, readFileSync, unlinkSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { writeFileSync, readFileSync } from "node:fs";
 import { createSubagentActivityRecorder } from "./activity.ts";
 import { findLastAssistantMessage } from "./session.ts";
 import { parseDeniedTools } from "./enforce.ts";
@@ -338,64 +337,6 @@ export default function (pi: ExtensionAPI) {
       return {
         content: [{ type: "text", text: "Shutting down subagent session." }],
         details: {},
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "check_messages",
-    label: "Check Messages",
-    description:
-      "Check for new messages from the orchestrator. " +
-      "Returns any messages the parent agent has sent you since the last check. " +
-      "Call this periodically to see if the orchestrator has new instructions, ideas, or advice.",
-    parameters: Type.Object({}),
-    async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
-      const coordDir = process.env.PI_SUBAGENT_COORD_DIR;
-      if (!coordDir) {
-        return {
-          content: [{ type: "text", text: "Not in a coordinated subagent context." }],
-          details: {},
-        };
-      }
-      const incoming = join(coordDir, "incoming");
-      if (!existsSync(incoming)) {
-        return {
-          content: [{ type: "text", text: "No messages." }],
-          details: {},
-        };
-      }
-      const files = readdirSync(incoming).filter(f => f.endsWith('.txt')).sort();
-      if (files.length === 0) {
-        return {
-          content: [{ type: "text", text: "No messages." }],
-          details: {},
-        };
-      }
-      const readEntries: Array<{ file: string; content: string }> = [];
-      for (const file of files) {
-        try {
-          const content = readFileSync(join(incoming, file), "utf-8").trim();
-          readEntries.push({ file, content });
-        } catch {
-          // skip files we can't read
-        }
-      }
-      // Delete all successfully read files (read-all-then-delete atomic pattern)
-      for (const { file } of readEntries) {
-        try {
-          unlinkSync(join(incoming, file));
-        } catch {
-          // best-effort cleanup
-        }
-      }
-      const messages = readEntries.map((e) => e.content);
-      const summary = messages.length === 1
-        ? `1 message from orchestrator`
-        : `${messages.length} messages from orchestrator`;
-      return {
-        content: [{ type: "text", text: summary + "\n\n" + messages.join("\n---\n") }],
-        details: { messages },
       };
     },
   });

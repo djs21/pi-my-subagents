@@ -75,50 +75,30 @@ Use **monocle** for small screens where each sub-agent needs full focus, **tilin
 
 ## Inter-Agent Communication
 
-Sub-agents can receive messages from the orchestrator while they run, using a file-based inbox.
+Sub-agents notify the orchestrator when they need help by exiting with a sidecar file that carries their request.
 
 ### How It Works
 
 ```
-Main agent writes file  →  ~/.local/share/pi/subagents/<id>/incoming/
-                          ↓
-Sub-agent calls check_messages()  →  reads + deletes file  →  returns content
-```
-
-### For the Orchestrator (Main Agent)
-
-Write a file to the sub-agent's `incoming/` directory. The subagent ID is returned when you spawn it.
-
-```bash
-echo "your message" > ~/.local/share/pi/subagents/<subagent-id>/incoming/001-instruction.txt
+Sub-agent calls caller_ping()  →  writes sidecar exit file  →  exits
+                               ↓
+Orchestrator sees the ping    →  resumes the session with a response
 ```
 
 ### For the Sub-Agent
 
-Call `check_messages()` periodically to see if the orchestrator has sent new instructions or feedback. The tool returns all new messages since your last check — each file is deleted after reading so you never process the same message twice.
+When stuck, in need of clarification, or when the parent must take action, call `caller_ping(message)`. The session exits and the orchestrator is notified with your message.
 
-### One-Shot Timers (optional)
+### For the Orchestrator (Main Agent)
 
-Install [pi-heartbeat](https://github.com/marcfargas/pi-heartbeat) for periodic wake-ups:
-
-```bash
-pi install npm:@marcfargas/pi-heartbeat
-```
-
-Then the main agent can use the `heartbeat` tool to wake itself at intervals and check for sub-agent results:
-
-```
-heartbeat(action: "start", interval_seconds: 30,
-          message: "Check ~/.local/share/pi/subagents/<session_id>/incoming/ for new files")
-```
+A `subagent_result` steer message with the ping payload arrives automatically. Resume the sub-agent's session with `subagent_resume` to answer.
 
 ### Direction Summary
 
 | Direction | Mechanism | Tool |
 |-----------|-----------|------|
-| Main → Sub-agent | File-based inbox | `write` / `bash` |
-| Sub-agent → Self | Read inbox | `check_messages()` |
 | Sub-agent → Main | Sidecar exit file | `caller_ping()` |
+
 ## Bundled Agents
 
 | Agent        | Role                                                                          |

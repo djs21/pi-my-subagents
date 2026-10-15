@@ -4,9 +4,8 @@
  *
  * Imported by spin.ts and resume.ts. Does NOT import from enforce.ts, agent.ts, spin.ts, or resume.ts.
  */
-import { existsSync, mkdirSync, writeFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { join } from "node:path";
 import type { RunningSubagent, SubagentResult } from "./types.ts";
 import {
   pollForExit,
@@ -39,43 +38,11 @@ export function getModuleAbortSignal(): AbortSignal {
   return ((globalThis as any)[POLL_ABORT_KEY] as AbortController).signal;
 }
 
-// ─── Coordination Constants ──────────────────────────────────────────
+// ─── Random Id ───────────────────────────────────────────────────
 
-export const MAX_MESSAGE_CHARS = 4000;
-export const MAX_MESSAGES_PER_CALL = 10;
-export const MAX_PENDING_FILES = 10;
-
-// ─── Coordination Helpers ───────────────────────────────────────
-
-/** Single source of truth for a subagent's coordination directory. */
 /** Generate crypto-secure random hex string */
 export function generateRandomId(bytes = 4): string {
   return randomBytes(bytes).toString("hex");
-}
-
-export function getCoordDir(id: string): string {
-  return join(process.env.HOME || "/tmp", ".local", "share", "pi", "subagents", id);
-}
-
-/**
- * Write an incoming message file to a subagent's coordination directory.
- * Creates `incoming/` recursively if needed. Returns the filename.
- */
-export function writeIncomingMessage(coordDir: string, seq: number, text: string): string {
-  const incoming = join(coordDir, "incoming");
-  mkdirSync(incoming, { recursive: true });
-  const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const rand = generateRandomId(2);
-  const filename = `${ts}-${seq}-${rand}.txt`;
-  writeFileSync(join(incoming, filename), text, "utf-8");
-  return filename;
-}
-
-/** Count pending message files in incoming/. Treats missing dir as 0. */
-export function countPendingFiles(coordDir: string): number {
-  const incoming = join(coordDir, "incoming");
-  if (!existsSync(incoming)) return 0;
-  return readdirSync(incoming).filter(f => f.endsWith(".txt")).length;
 }
 
 // ─── Running Subagents ────────────────────────────────────────────
@@ -235,16 +202,9 @@ export async function watchSubagent(
 
 /**
  * Clean up temporary resources created for a subagent run.
- * Deletes the coordination directory (incoming messages) and the generated launch script.
+ * Deletes the generated launch script.
  */
 export function cleanupSubagentResources(running: { id: string; launchScriptFile?: string }): void {
-  try {
-    const coord = getCoordDir(running.id);
-    rmSync(coord, { recursive: true, force: true });
-  } catch {
-    // best-effort cleanup
-  }
-
   if (running.launchScriptFile) {
     try {
       rmSync(running.launchScriptFile, { force: true });

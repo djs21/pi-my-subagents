@@ -38,7 +38,6 @@ import {
   updateWidget,
   startWidgetRefresh,
   resetStatusCheckThrottle,
-  getCoordDir,
   statusConfig,
   generateRandomId,
 } from "./shared.ts";
@@ -76,9 +75,6 @@ export async function launchSubagent(
   const startTime = Date.now();
   const id = generateRandomId(4);
 
-  // Coordination dir for incoming messages from orchestrator
-  const coordDir = getCoordDir(id);
-  mkdirSync(join(coordDir, "incoming"), { recursive: true });
   // Auto-resolve agent: explicit params.agent wins (case-any), else try name as fallback
   // If exact name doesn't match an agent definition, try prefix matching
   // Final fallback: worker defaults (common case, better than crippled agent)
@@ -138,8 +134,8 @@ export async function launchSubagent(
   const { inheritsConversationContext } = launchBehavior;
 
   const modeHint = agentDefs?.autoExit
-    ? `Complete your task autonomously. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request. Periodically call check_messages() to see if the orchestrator has sent new instructions or ideas.`
-    : `Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request. Periodically call check_messages() to see if the orchestrator has sent new instructions or ideas.`;
+    ? `Complete your task autonomously. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request.`
+    : `Complete your task. When finished, call the subagent_done tool. The user can interact with you at any time. If stuck, need clarification, or need the parent to take action, use the caller_ping tool to send a help request.`;
   const summaryInstruction = agentDefs?.autoExit
     ? "IMPORTANT: Before calling subagent_done, your assistant message MUST include a TEXT block that summarizes what you accomplished. Do NOT skip this — the orchestrator uses it as your completion report. A tool call alone (like write or subagent_done) does NOT count as a summary."
     : "IMPORTANT: Before calling subagent_done, caller_ping, or before the user exits, your assistant message MUST include a TEXT block that summarizes what you accomplished. Do NOT skip this — the orchestrator uses it as your completion report. A tool call alone does NOT count as a summary.";
@@ -203,7 +199,6 @@ export async function launchSubagent(
   envParts.push(`PI_SUBAGENT_SESSION=${shellEscape(subagentSessionFile)}`);
   envParts.push(`PI_SUBAGENT_ID=${shellEscape(id)}`);
   envParts.push(`PI_SUBAGENT_ACTIVITY_FILE=${shellEscape(activityFile)}`);
-  envParts.push(`PI_SUBAGENT_COORD_DIR=${shellEscape(coordDir)}`);
   envParts.push(`PI_SUBAGENT_SURFACE=${shellEscape(surface)}`);
   const envPrefix = envParts.join(" ") + " ";
 

@@ -8,11 +8,6 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync, readdirSyn
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import {
-  seedSubagentSessionFile,
-  getSessionAgent,
-} from "../pi-extension/subagents/session.ts";
-
 describe("session.ts - Agent metadata in session header (Tracer Bullet)", () => {
   let dir: string;
 
@@ -174,73 +169,19 @@ describe("resume.ts - Auto-detection and Tool Resolution", () => {
   });
 });
 
-describe("subagent-done.ts - check_messages atomicity", () => {
-  let dir: string;
-  before(() => {
-    dir = mkdtempSync(join(tmpdir(), "subagents-messages-test-"));
-  });
-  after(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-  it("reads all pending messages atomically and removes files", async () => {
-    // Self-contained mock without importing test.ts
-    // Set up mock coord dir with incoming files
-    const coordDir = dir;
-    const incoming = join(coordDir, "incoming");
-    mkdirSync(incoming, { recursive: true });
-    writeFileSync(join(incoming, "2026-09-06-0-a1b2.txt"), "First message");
-    writeFileSync(join(incoming, "2026-09-06-1-c3d4.txt"), "Second message");
-
-    const prevCoord = process.env.PI_SUBAGENT_COORD_DIR;
-    process.env.PI_SUBAGENT_COORD_DIR = coordDir;
-    try {
-      const { default: initSubagent } = await import("../pi-extension/subagents/subagent-done.ts");
-      const registeredTools: any[] = [];
-      initSubagent({
-        registerTool(t: any) { registeredTools.push(t); },
-        registerShortcut() {},
-        on() {},
-        getAllTools() { return []; },
-      } as any);
-
-      const checkTool = registeredTools.find((t) => t.name === "check_messages");
-      assert.ok(checkTool, "check_messages tool must be registered");
-
-      const result = await checkTool.execute("tc-1", {}, new AbortController().signal, () => {}, {} as any);
-      assert.equal(result.details.messages.length, 2);
-      assert.equal(result.details.messages[0], "First message");
-      assert.equal(result.details.messages[1], "Second message");
-
-      // Verify incoming files were deleted after read
-      const remaining = readdirSync(incoming).filter((f: string) => f.endsWith(".txt"));
-      assert.equal(remaining.length, 0, "all message files must be deleted");
-    } finally {
-      if (prevCoord === undefined) delete process.env.PI_SUBAGENT_COORD_DIR;
-      else process.env.PI_SUBAGENT_COORD_DIR = prevCoord;
-    }
-  });
 
 describe("shared.ts - cleanupSubagentResources", () => {
-  it("cleans up coordination directory and launch script on exit", async () => {
-    const { cleanupSubagentResources, getCoordDir } = await import("../pi-extension/subagents/shared.ts");
-    const id = "test-cleanup-123";
-    const coordDir = getCoordDir(id);
-    mkdirSync(join(coordDir, "incoming"), { recursive: true });
-    writeFileSync(join(coordDir, "incoming", "msg.txt"), "hello");
+  it("cleans up launch script on exit", async () => {
+    const { cleanupSubagentResources } = await import("../pi-extension/subagents/shared.ts");
 
     const scriptDir = mkdtempSync(join(tmpdir(), "subagents-script-"));
     const launchScriptFile = join(scriptDir, "launch.sh");
     writeFileSync(launchScriptFile, "#!/bin/sh\necho hi");
 
-    assert.ok(existsSync(coordDir), "coordDir must exist before cleanup");
     assert.ok(existsSync(launchScriptFile), "launchScriptFile must exist before cleanup");
 
-    cleanupSubagentResources({
-      id,
-      launchScriptFile,
-    } as any);
+    cleanupSubagentResources({ id: "test-cleanup-123", launchScriptFile } as any);
 
-    assert.ok(!existsSync(coordDir), "coordDir must be removed after cleanup");
     assert.ok(!existsSync(launchScriptFile), "launchScriptFile must be removed after cleanup");
 
     rmSync(scriptDir, { recursive: true, force: true });
@@ -403,5 +344,4 @@ describe("widget.ts - narrow width rendering", () => {
 
     assert.deepStrictEqual(renderSubagentWidgetLines(dummyAgents, 0, true), []);
   });
-});
 });

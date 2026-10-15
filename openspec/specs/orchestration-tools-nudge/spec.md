@@ -2,20 +2,20 @@
 
 ## Purpose
 
-Nudge the main agent's system prompt with the orchestration tools it has (subagent_status with backoff, subagent_interrupt, subagents_list, send_messages).
+Nudge the main agent's system prompt with the orchestration tools it has (subagent_status with backoff, subagent_interrupt, subagents_list).
 
 ## Requirements
 
 ### Requirement: Prompt injection lists all orchestration tools
-The system prompt injection (via `registerPromptInject`) SHALL include a section that names and briefly describes each of the following tools: `subagent_status`, `subagent_interrupt`, `subagents_list`, and `send_messages`.
+The system prompt injection (via `registerPromptInject`) SHALL include a section that names and briefly describes each of the following tools: `subagent_status`, `subagent_interrupt`, and `subagents_list`.
 
-#### Scenario: Delegate-ON path includes all four tools
+#### Scenario: Delegate-ON path includes all three tools
 - **WHEN** `registerPromptInject` fires with delegate config enabled
-- **THEN** the injected section SHALL contain the strings `subagent_status`, `subagent_interrupt`, `subagents_list`, and `send_messages`
+- **THEN** the injected section SHALL contain the strings `subagent_status`, `subagent_interrupt`, and `subagents_list`
 
-#### Scenario: Delegate-OFF path includes all four tools (verified by construction)
+#### Scenario: Delegate-OFF path includes all three tools (verified by construction)
 - **WHEN** `registerPromptInject` fires with delegate config disabled
-- **THEN** the injected section SHALL contain the strings `subagent_status`, `subagent_interrupt`, `subagents_list`, and `send_messages`
+- **THEN** the injected section SHALL contain the strings `subagent_status`, `subagent_interrupt`, and `subagents_list`
 
 > **Testability note:** This scenario is verified by construction, not by a separate test. `getDelegateConfig()` reads the real filesystem (`~/.pi/agent/subagent-config-main.json`), so tests cannot toggle the delegate branch. Both the delegate-ON and delegate-OFF code paths reference the same shared `ORCHESTRATION_TOOLS` const — testing one path implicitly validates the other.
 

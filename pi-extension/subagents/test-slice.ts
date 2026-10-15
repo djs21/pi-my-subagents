@@ -23,12 +23,6 @@ import {
   setStatusSnapshot,
   getStatusSnapshot,
   getStatusThrottleStrikes,
-  getCoordDir,
-  writeIncomingMessage,
-  countPendingFiles,
-  MAX_MESSAGE_CHARS,
-  MAX_MESSAGES_PER_CALL,
-  MAX_PENDING_FILES,
 } from "./shared.ts";
 import {
   borderLine,
@@ -73,10 +67,4 @@ export const __test__ = {
   setStatusSnapshot,
   getStatusSnapshot,
   getStatusThrottleStrikes,
-  getCoordDir,
-  writeIncomingMessage,
-  countPendingFiles,
-  MAX_MESSAGE_CHARS,
-  MAX_MESSAGES_PER_CALL,
-  MAX_PENDING_FILES,
 };

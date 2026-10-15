@@ -27,7 +27,6 @@ import {
   runningSubagents,
   updateWidget,
   startWidgetRefresh,
-  getCoordDir,
   statusConfig,
   generateRandomId,
 } from "./shared.ts";
@@ -129,10 +128,6 @@ export async function executeSubagentResume(
   const startTime = Date.now();
   const id = generateRandomId(4);
 
-  // Coordination dir for incoming messages from orchestrator
-  const coordDir = getCoordDir(id);
-  mkdirSync(join(coordDir, "incoming"), { recursive: true });
-
   if (!isMuxAvailable()) return muxUnavailableResult();
   if (!existsSync(params.sessionPath)) {
     return { content: [{ type: "text", text: `Error: session file not found: ${params.sessionPath}` }], details: { error: "session not found" } };
@@ -181,7 +176,6 @@ export async function executeSubagentResume(
   resumeEnvParts.push(`PI_SUBAGENT_NAME=${shellEscape(name)}`);
   resumeEnvParts.push(`PI_SUBAGENT_SESSION=${shellEscape(params.sessionPath)}`);
   resumeEnvParts.push(`PI_SUBAGENT_ID=${shellEscape(id)}`);
-  resumeEnvParts.push(`PI_SUBAGENT_COORD_DIR=${shellEscape(coordDir)}`);
   resumeEnvParts.push(`PI_SUBAGENT_ACTIVITY_FILE=${shellEscape(activityFile)}`);
   if (resolvedAgent) resumeEnvParts.push(`PI_SUBAGENT_AGENT=${shellEscape(resolvedAgent)}`);
   if (autoExit) resumeEnvParts.push(`PI_SUBAGENT_AUTO_EXIT=1`);
