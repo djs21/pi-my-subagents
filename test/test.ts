@@ -2448,6 +2448,18 @@ describe("agent extensions & skills", () => {
       );
     });
 
+    it("does not suppress skills by default (inherits parent skills)", () => {
+      // No explicit skills configured -> subagent inherits the parent Pi
+      // environment's skills, so no --no-skills flag is injected.
+      const result = buildAgentResourceArgs({ model: "test" }, "/tmp");
+      assert.ok(!result.includes("--no-skills"));
+    });
+
+    it("does not suppress skills for empty/whitespace-only skills", () => {
+      assert.ok(!buildAgentResourceArgs({ skills: "" }, "/tmp").includes("--no-skills"));
+      assert.ok(!buildAgentResourceArgs({ skills: "  ,  " }, "/tmp").includes("--no-skills"));
+    });
+
     it("adds --no-extensions and -e for explicit extensions", () => {
       const result = buildAgentResourceArgs(
         { extensions: "/home/user/ext.ts" },
@@ -2457,7 +2469,9 @@ describe("agent extensions & skills", () => {
       assert.ok(result.includes("-e"));
     });
 
-    it("adds --no-skills and --skill for explicit skills", () => {
+    it("suppresses default skills and adds --skill for explicit skills", () => {
+      // Explicit skills configured -> suppress inherited discovery and load only
+      // the explicitly listed skills.
       const result = buildAgentResourceArgs(
         { skills: "tavily-search" },
         "/tmp",

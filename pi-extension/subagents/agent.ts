@@ -82,9 +82,12 @@ export function buildAgentResourceArgs(agentDefs: AgentDefaults | null, agentDir
     for (const ext of resolveAgentExtensions(rawExts, agentDir)) args.push("-e", shellEscape(ext));
   }
   const rawSkills = agentDefs.skills;
-  if (rawSkills !== undefined) {
+  // Only suppress inherited skills when explicit skills are actually configured.
+  // When skills is undefined/empty, the agent inherits the parent Pi environment's skills.
+  const explicitSkills = rawSkills !== undefined ? rawSkills.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  if (explicitSkills.length > 0) {
     args.push("--no-skills");
-    for (const skillPath of rawSkills.split(",").map((s) => s.trim()).filter(Boolean)) {
+    for (const skillPath of explicitSkills) {
       if (skillPath.includes("/") || skillPath.startsWith("~") || skillPath.startsWith(".")) {
         let resolved: string;
         if (skillPath.startsWith("/")) resolved = skillPath;

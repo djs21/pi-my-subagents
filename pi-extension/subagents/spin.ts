@@ -179,12 +179,10 @@ export async function launchSubagent(
     parts.push("--no-context-files");
   }
 
-  // Sub-agents don't need skill definitions — default skills suppressed.
-  // Skills are loaded via /skill:name prompt args (buildPiPromptArgs) or pi's internal
-  // skill resolution from subagent-config.json, not via --skill CLI flag.
-  parts.push("--no-skills");
-
-
+  // Sub-agents inherit the parent Pi environment's skills by default (no --no-skills).
+  // Default skill discovery is only suppressed when the agent definition/config
+  // specifies explicit skills, in which case only those skills are loaded via --skill
+  // (--skill is additive even alongside --no-skills, see pi skills docs).
 
   const envParts: string[] = [];
   if (localAgentDir && existsSync(localAgentDir)) {
@@ -214,8 +212,10 @@ export async function launchSubagent(
     taskArg = `@${artifactPath}`;
   }
 
-  // Also handle path-based skills via --skill CLI arg (works with --no-skills)
+  // When explicit skills are configured, suppress default discovery and load only
+  // those skills via --skill CLI arg (works with --no-skills).
   if (effectiveSkills) {
+    parts.push("--no-skills");
     for (const skill of effectiveSkills.split(",").map((s) => s.trim()).filter(Boolean)) {
       if (skill.includes("/") || skill.startsWith("~")) {
         let resolved: string;
