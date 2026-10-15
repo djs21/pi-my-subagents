@@ -1,10 +1,11 @@
 /**
  * Extension loaded into sub-agents.
- * - Shows agent identity + available tools as a styled widget above the editor (toggle with Alt+=)
+ * - Shows agent identity, active tool count and blocked tools as a permanent,
+ *   compact widget above the editor (no manual toggle required)
  * - Provides a `subagent_done` tool for autonomous agents to self-terminate
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Box, Text } from "@earendil-works/pi-tui";
+import { Box, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { writeFileSync, readFileSync } from "node:fs";
 import { createSubagentActivityRecorder } from "./activity.ts";
@@ -71,10 +72,34 @@ export function findLatestAssistantError(
   return null;
 }
 
+/**
+ * Build the single-line summary shown in the child session widget:
+ *
+ *   [agent] Active (X tools) │ Blocked: tool1, tool2, ...
+ *
+ * When nothing is blocked it renders `Blocked: none`. The line is truncated
+ * from the right (with an ellipsis) so it never overflows the terminal width.
+ */
+export function formatSubagentToolsWidget(
+  agentLabel: string,
+  toolCount: number,
+  blocked: string[],
+  maxWidth?: number,
+): string {
+  const tag = agentLabel ? `[${agentLabel}] ` : "";
+  const blockedInfo =
+    blocked.length > 0 ? blocked.join(", ") : "none";
+  const line = `${tag}Active (${toolCount} tools) │ Blocked: ${blockedInfo}`;
+
+  if (maxWidth !== undefined && maxWidth > 0 && visibleWidth(line) > maxWidth) {
+    return truncateToWidth(line, maxWidth, "…");
+  }
+  return line;
+}
+
 export default function (pi: ExtensionAPI) {
   let toolNames: string[] = [];
   let denied: string[] = [];
-  let expanded = false;
 
   // Read subagent identity from env vars (set by parent orchestrator)
   const subagentName = process.env.PI_SUBAGENT_NAME ?? "";
@@ -89,47 +114,38 @@ export default function (pi: ExtensionAPI) {
   function renderWidget(ctx: { ui: { setWidget: Function } }, _theme: any) {
     ctx.ui.setWidget(
       "subagent-tools",
-      (_tui: any, theme: any) => {
+      (tui: any, theme: any) => {
         const box = new Box(1, 0, (text: string) => theme.bg("toolSuccessBg", text));
 
         const label = subagentAgent || subagentName;
-        const agentTag = label ? theme.bold(theme.fg("accent", `[${label}]`)) : "";
+        const agentTag = label ? theme.bold(theme.fg("accent", `[${label}] `)) : "";
 
-        if (expanded) {
-          // Expanded: full tool list + denied
-          const countInfo = theme.fg("dim", ` — ${toolNames.length} available`);
-          const hint = theme.fg("muted", "  (Alt+= to collapse)");
+        const width: number | undefined =
+          typeof tui?.width === "number"
+            ? tui.width
+            : typeof tui?.terminal?.columns === "number"
+              ? tui.terminal.columns
+              : undefined;
 
-          const toolList = toolNames
-            .map((name: string) => theme.fg("dim", name))
-            .join(theme.fg("muted", ", "));
+        // Permanently render the compact summary: active tool count + blocked
+        // tools. No toggle needed; long blocked lists are truncated to fit.
+        const blockedList =
+          denied.length > 0
+            ? denied.map((name: string) => theme.fg("error", name)).join(theme.fg("muted", ", "))
+            : theme.fg("muted", "none");
 
-          let deniedLine = "";
-          if (denied.length > 0) {
-            const deniedList = denied
-              .map((name: string) => theme.fg("error", name))
-              .join(theme.fg("muted", ", "));
-            deniedLine = "\n" + theme.fg("muted", "denied: ") + deniedList;
-          }
+        const line = `${agentTag}${theme.fg(
+          "dim",
+          `Active (${toolNames.length} tools) │ Blocked: `,
+        )}${blockedList}`;
 
-          const content = new Text(
-            `${agentTag}${countInfo}${hint}\n${toolList}${deniedLine}`,
-            0,
-            0,
-          );
-          box.addChild(content);
-        } else {
-          // Collapsed: one-line summary
-          const countInfo = theme.fg("dim", ` — ${toolNames.length} tools`);
-          const deniedInfo =
-            denied.length > 0
-              ? theme.fg("dim", " · ") + theme.fg("error", `${denied.length} denied`)
-              : "";
-          const hint = theme.fg("muted", "  (Alt+= to expand)");
+        const body =
+          width !== undefined && width > 0 && visibleWidth(line) > width
+            ? truncateToWidth(line, width, "…")
+            : line;
 
-          const content = new Text(`${agentTag}${countInfo}${deniedInfo}${hint}`, 0, 0);
-          box.addChild(content);
-        }
+        const content = new Text(body, 0, 0);
+        box.addChild(content);
 
         return box;
       },
@@ -255,15 +271,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_shutdown", (event) => {
     recorder.sessionShutdown((event as any).reason);
-  });
-
-  // Toggle expand/collapse with Alt+=
-  pi.registerShortcut("alt+=", {
-    description: "Toggle subagent tools widget",
-    handler: (ctx) => {
-      expanded = !expanded;
-      renderWidget(ctx, null);
-    },
   });
 
   pi.registerTool({

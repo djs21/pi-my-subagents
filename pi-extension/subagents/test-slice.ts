@@ -26,6 +26,10 @@ import {
   updateWidget,
 } from "./widget.ts";
 import {
+  formatSubagentToolsWidget,
+  parseDeniedTools,
+} from "./subagent-done.ts";
+import {
   handleSubagentInterrupt as rawInterrupt,
   resolveInterruptTarget as rawResolveTarget,
   requestSubagentInterrupt,
@@ -57,4 +61,6 @@ export const __test__ = {
   ) => rawInterrupt(params, runningSubagents, () => updateWidget(null, runningSubagents, false), sendEscapeKey ?? (() => {}), closeSurfaceFn ?? (() => {})),
   resolveInterruptTarget: (params: { id?: string; name?: string }) => rawResolveTarget(params, runningSubagents),
   requestSubagentInterrupt,
+  formatSubagentToolsWidget,
+  parseDeniedTools,
 };

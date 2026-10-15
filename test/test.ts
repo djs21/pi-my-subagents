@@ -43,7 +43,9 @@ import {
   shouldMarkUserTookOver,
   shouldAutoExitOnAgentEnd,
   findLatestAssistantError,
+  formatSubagentToolsWidget,
 } from "../pi-extension/subagents/subagent-done.ts";
+import subagentDoneExtension from "../pi-extension/subagents/subagent-done.ts";
 import { __pollForExitTest__ } from "../pi-extension/subagents/mux.ts";
 
 // --- Helpers ---
@@ -71,6 +73,7 @@ function withTempDir(run: (dir: string) => void) {
 function createMockExtensionApi() {
   const registeredTools: Array<any> = [];
   const registeredCommands: Array<any> = [];
+  const registeredShortcuts: Array<{ key: string; options: any }> = [];
   const registeredMessageRenderers: Array<any> = [];
   const sentUserMessages: string[] = [];
   const sentMessages: Array<any> = [];
@@ -78,6 +81,7 @@ function createMockExtensionApi() {
   return {
     registeredTools,
     registeredCommands,
+    registeredShortcuts,
     registeredMessageRenderers,
     sentUserMessages,
     sentMessages,
@@ -95,7 +99,9 @@ function createMockExtensionApi() {
       registerMessageRenderer(name: string, renderer: any) {
         registeredMessageRenderers.push({ name, renderer });
       },
-      registerShortcut() {},
+      registerShortcut(key: string, options: any) {
+        registeredShortcuts.push({ key, options });
+      },
       sendUserMessage(message: string) {
         sentUserMessages.push(message);
       },
@@ -1485,6 +1491,120 @@ describe("subagent-done.ts", () => {
     it("returns null when messages is undefined or empty", () => {
       assert.equal(findLatestAssistantError(undefined), null);
       assert.equal(findLatestAssistantError([]), null);
+    });
+  });
+
+  describe("formatSubagentToolsWidget", () => {
+    it("renders the agent tag, active tool count and blocked tools", () => {
+      assert.equal(
+        formatSubagentToolsWidget("scout", 5, ["bash", "web_search"]),
+        "[scout] Active (5 tools) │ Blocked: bash, web_search",
+      );
+    });
+
+    it("renders `Blocked: none` when nothing is blocked", () => {
+      assert.equal(
+        formatSubagentToolsWidget("scout", 7, []),
+        "[scout] Active (7 tools) │ Blocked: none",
+      );
+    });
+
+    it("omits the agent tag when no label is known", () => {
+      assert.equal(
+        formatSubagentToolsWidget("", 3, []),
+        "Active (3 tools) │ Blocked: none",
+      );
+    });
+
+    it("truncates long blocked tool lists so the line never overflows", () => {
+      const line = formatSubagentToolsWidget(
+        "worker",
+        12,
+        ["very_long_blocked_tool_name", "another_extremely_long_tool_name", "third_blocked_tool"],
+        40,
+      );
+      assert.ok(visibleWidth(line) <= 40, `expected width <= 40, got ${visibleWidth(line)}`);
+      assert.match(line, /…/, `expected ellipsis truncation, got ${JSON.stringify(line)}`);
+      assert.ok(
+        !line.includes("third_blocked_tool"),
+        `expected trailing blocked tool to be cut, got ${JSON.stringify(line)}`,
+      );
+    });
+
+    it("does not truncate when the line already fits", () => {
+      const line = formatSubagentToolsWidget("scout", 2, ["bash"], 120);
+      assert.equal(line, "[scout] Active (2 tools) │ Blocked: bash");
+    });
+  });
+
+  describe("child session widget extension", () => {
+    function setupExtension() {
+      const widgets: Array<{ key: string; rendered: string[] }> = [];
+      const shortcuts: Array<{ key: string; options: any }> = [];
+      const handlers: Record<string, Function> = {};
+
+      const theme: any = {
+        bg: (_name: string, text: string) => text,
+        bold: (text: string) => text,
+        fg: (name: string, text: string) => (name === "error" ? `<err>${text}</err>` : text),
+      };
+
+      const api: any = {
+        on(event: string, handler: Function) {
+          handlers[event] = handler;
+        },
+        registerTool() {},
+        registerShortcut(key: string, options: any) {
+          shortcuts.push({ key, options });
+        },
+        getAllTools() {
+          return [{ name: "read" }, { name: "bash" }, { name: "web_search" }];
+        },
+      };
+
+      const ctx: any = {
+        ui: {
+          setWidget(key: string, factory: any) {
+            const component = factory({ width: 200, terminal: { columns: 200 } }, theme);
+            const rendered: string[] = component.render ? component.render(200) : [];
+            widgets.push({ key, rendered });
+          },
+        },
+        shutdown() {},
+      };
+
+      return { api, ctx, widgets, shortcuts, handlers, theme };
+    }
+
+    it("does not register the Alt+= toggle shortcut anymore", () => {
+      const { api, shortcuts } = setupExtension();
+      subagentDoneExtension(api);
+      assert.equal(
+        shortcuts.find((s) => s.key === "alt+="),
+        undefined,
+        "Alt+= shortcut must be removed",
+      );
+    });
+
+    it("renders blocked tools and the active count permanently on session_start", () => {
+      const previous = process.env.PI_DENY_TOOLS;
+      process.env.PI_DENY_TOOLS = "bash,web_search";
+      try {
+        const { api, ctx, widgets, handlers } = setupExtension();
+        subagentDoneExtension(api);
+        handlers["session_start"]?.({}, ctx);
+
+        assert.equal(widgets.length, 1);
+        assert.equal(widgets[0].key, "subagent-tools");
+        const rendered = widgets[0].rendered.join("\n");
+        assert.match(rendered, /Active \(3 tools\)/);
+        assert.match(rendered, /Blocked: /);
+        assert.match(rendered, /<err>bash<\/err>/);
+        assert.match(rendered, /<err>web_search<\/err>/);
+      } finally {
+        if (previous === undefined) delete process.env.PI_DENY_TOOLS;
+        else process.env.PI_DENY_TOOLS = previous;
+      }
     });
   });
 });
