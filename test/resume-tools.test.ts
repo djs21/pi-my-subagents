@@ -326,28 +326,6 @@ describe("activity.ts - recorder cooldown recovery", () => {
   });
 });
 
-describe("commands.ts - formatScopeConfig mixed types", () => {
-  it("formats string tools and array tools correctly without character splitting", async () => {
-    const { formatScopeConfig } = await import("../pi-extension/subagents/commands.ts");
-    const configWithString: any = {
-      agents: {
-        pnr: {
-          model: "claude-3-7-sonnet",
-          tools: "read,bash,write,explore",
-          skills: "tdd,diagnose",
-        },
-        worker: {
-          tools: ["read", "bash"],
-          skills: ["tdd"],
-        },
-      },
-    };
-    const output = formatScopeConfig(configWithString);
-    assert.ok(output.includes("- tools: read,bash,write,explore"), "string tools should be preserved directly");
-    assert.ok(output.includes("- tools: read, bash"), "array tools should be joined with comma");
-  });
-});
-
 describe("widget.ts - narrow width rendering", () => {
   it("handles extreme narrow widths without crashing or negative repeats", async () => {
     const { borderLine, borderTop, borderBottom, renderSubagentWidgetLines } = await import("../pi-extension/subagents/widget.ts");

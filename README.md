@@ -99,6 +99,84 @@ A `subagent_result` steer message with the ping payload arrives automatically. R
 |-----------|-----------|------|
 | Sub-agent → Main | Sidecar exit file | `caller_ping()` |
 
+## Configuration — `subagent-config.json`
+
+The extension is configured with a JSON file. Configuration is optional — without a file, every agent uses the defaults from its `.md` frontmatter.
+
+### File Locations
+
+| Scope | Path | Purpose |
+|-------|------|---------|
+| **Project** | `<project>/.pi/subagent-config.json` | Overrides tuned for this repository. Committed with the project. |
+| **Global** | `~/.pi/agent/subagent-config.json` | Your personal defaults, applied across all projects. |
+
+A ready-to-copy example lives at [`.pi/subagent-config.json.example`](.pi/subagent-config.json.example).
+
+```bash
+cp .pi/subagent-config.json.example .pi/subagent-config.json
+```
+
+### Evaluation Hierarchy
+
+Each supported property is resolved from highest to lowest priority:
+
+```
+Tool arguments (subagent tool call)
+        >
+Project config  (.pi/subagent-config.json)
+        >
+Global config   (~/.pi/agent/subagent-config.json)
+        >
+Frontmatter     (agent .md definition)
+```
+
+- **Tool arguments** win for that single invocation only — pass `model`, `tools`, etc. directly on the `subagent(...)` call.
+- **Project config** wins over global config for the same field; global fills the gaps.
+- **Frontmatter** is the base agent definition (`.pi/agents/*.md` or bundled agents).
+- `model` **replaces** the lower-priority value; `tools`, `skills`, and `extensions` are **appended** to the base list and de-duplicated (they never remove base entries).
+
+### Properties
+
+Top level:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `layout` | `"tiling"` \| `"bottom-stack"` \| `"monocle"` | Pane arrangement for sub-agents. Project overrides global. |
+| `agents` | object | Per-agent overrides keyed by agent name. |
+
+Each entry under `agents.<name>`:
+
+| Property | Type | Merge | Description |
+|----------|------|-------|-------------|
+| `model` | string | replace | Model in `provider/model-id` form. |
+| `tools` | string[] | append | Extra tools to add to the agent's base tools. |
+| `skills` | string[] | append | Extra skills to add to the agent's base skills. |
+| `extensions` | string[] | append | Extension references — paths (`/abs/path`, `~/path`) or pi packages (`npm:...`, `git:...`). |
+
+### Example
+
+```json
+{
+  "layout": "bottom-stack",
+  "agents": {
+    "worker": {
+      "model": "anthropic/claude-sonnet-4-6",
+      "tools": ["bash", "web_search"],
+      "skills": ["tdd"],
+      "extensions": ["git:github.com/your-org/your-extension"]
+    },
+    "reviewer": {
+      "model": "anthropic/claude-opus-4-1",
+      "tools": [],
+      "skills": [],
+      "extensions": []
+    }
+  }
+}
+```
+
+Only the properties you set are overridden; everything else keeps its default. Changes take effect on the next subagent spawn — run `/reload` if you edited the file during a running session.
+
 ## Bundled Agents
 
 | Agent        | Role                                                                          |

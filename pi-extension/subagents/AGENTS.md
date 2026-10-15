@@ -20,15 +20,13 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`activity.ts`** — subagent activity recording
 - **`session.ts`** — session file management (read/write/merge)
 - **`agent.ts`** — agent definition loading, defaults resolution, path resolution, config parsing
-- **Tool/skill/extension override = append**: subagent-config.json `tools`/`skills`/`extensions` are ADDED to the agent .md base list (deduped), never replace it. Wizard "Available" list shows only tools not already effective. Wizard "Active" shows base .md tools as 🔒 locked (not removable) plus JSON additions; "Available" = registered tools not yet effective. Skills editor matches base frontmatter skill names by folder basename.
+- **Tool/skill/extension override = append**: subagent-config.json `tools`/`skills`/`extensions` are ADDED to the agent .md base list (deduped), never replace it. `model` replaces. Evaluation order: tool arguments > project config > global config > frontmatter .md.
 - **`prompt-inject.ts`** — `before_agent_start` hook that appends available sub-agents to the system prompt
 - **`interrupt.ts`** — interrupt/signal handling for running subagents
 - **`renderers.ts`** — message renderers for result/status/ping/stalled
 - **`subagent-done.ts`** — subagent completion sidecar handler + caller_ping help-request tool
 - **`widget.ts`** — live widget rendering for the TUI
-- **`config.ts`** — per-agent resource override config
-- **`commands.ts`** — pi commands (subagent config)
-- **`discovery.ts`** — discovery of agents, extensions, skills, and models
+- **`config.ts`** — per-agent resource override config (read/write/merge of subagent-config.json)
 - **`test-slice.ts`** — exported test helpers
 
 ## Local Contracts
@@ -55,13 +53,13 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - Prefer pure functions with explicit dependencies over module-level state
 - New mux operations go in `mux.ts`, new layout logic goes in `mux-layout.ts` or `monocle.ts` for window-based monocle layout
 - Resize backends go in `herdr-mux.ts` and `tmux-mux.ts` — dispatch through closures in `mux.ts:createSurface()`
-- All config/agent resolution goes through `agent.ts` and `config.ts`
+- All config/agent resolution goes through `agent.ts` and `config.ts`. There is no interactive config wizard — users edit `.pi/subagent-config.json` or `~/.pi/agent/subagent-config.json` directly (see root README).
 - **Sub-agent prompt minimization**: every sub-agent strips unnecessary layers (pi base prompt via `replace`, project context via `--no-context-files`, skills via `--no-skills`, orchestration via `PI_SUBAGENT_NAME` guard). Custom extensions are disabled — only `subagent-done.ts` is injected.
 - **Status tool has no rate limiting**: `subagent_status` always returns a fresh live snapshot on each call. There is no minimum interval, no backoff, and no snapshot cache. The `status` config object only carries `enabled` and `lineLimit`.
 
 ## Verification
 
-- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, discovery, `subagent_status` live-snapshot behavior (immediate returns across repeated calls, no throttled flag), shared.ts export surface (throttle/backoff helpers removed), and config parsing (enabled, lineLimit, rejection of removed `minIntervalMs`)
+- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, `subagent_status` live-snapshot behavior (immediate returns across repeated calls, no throttled flag), shared.ts export surface (throttle/backoff helpers removed), and config parsing (enabled, lineLimit, rejection of removed `minIntervalMs`)
 - Run: `npm test`
 
 ## Child DOX Index

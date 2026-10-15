@@ -53,9 +53,7 @@ import {
   type SubagentActivityState,
 } from "./activity.ts";
 import { getAgentOverride } from "./config.ts";
-import { registerSubagentConfigCommand } from "./commands.ts";
 import { registerPromptInject } from "./prompt-inject.ts";
-import { setExtensionApi } from "./discovery.ts";
 
 import { launchSubagent, createSubagentTool } from "./spin.ts";
 
@@ -136,8 +134,6 @@ export { __test__ } from "./test-slice.ts";
  * Call watchSubagent() on the returned object to observe completion.
  */
 export default function subagentsExtension(pi: ExtensionAPI) {
-  setExtensionApi(pi);
-
   // Capture the UI context for widget updates
   pi.on("session_start", (_event, ctx) => {
     latestCtx = ctx;
@@ -401,7 +397,4 @@ export default function subagentsExtension(pi: ExtensionAPI) {
   pi.registerMessageRenderer("subagent_result", subagentResultRenderer);
   pi.registerMessageRenderer("subagent_status", subagentStatusRenderer);
   pi.registerMessageRenderer("subagent_stalled", subagentStalledRenderer);
-
-
-  registerSubagentConfigCommand(pi);
 }
