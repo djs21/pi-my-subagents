@@ -20,7 +20,17 @@ import {
 
 import {
   shellEscape,
+  stripAnsi,
+  cleanTerminalOutput,
 } from "../pi-extension/subagents/mux.ts";
+import {
+  handleSubagentPeek,
+  handleSubagentSteer,
+} from "../pi-extension/subagents/interrupt.ts";
+import {
+  ORCHESTRATOR_TOOLS,
+  type RunningSubagent,
+} from "../pi-extension/subagents/types.ts";
 import {
   advanceStatusState,
   capStatusLines,
@@ -2891,5 +2901,269 @@ describe("subagent_status description", () => {
     assert.match(tool.promptSnippet, /live snapshot/i);
     assert.doesNotMatch(tool.description, /backoff|rate limit/i);
     assert.doesNotMatch(tool.promptSnippet, /backoff|rate limit/i);
+  });
+});
+
+describe("terminal output cleaning", () => {
+  it("removes colors and cursor escape sequences", () => {
+    const colored = "\u001b[32mhello\u001b[0m \u001b[1;31mworld\u001b[0m\u001b[2K";
+    assert.equal(stripAnsi(colored), "hello world");
+  });
+
+  it("normalizes CRLF, trims line ends, collapses empty lines, and trims blanks", () => {
+    const raw = "\r\n\r\nline 1   \r\n\r\n\r\n\r\nline 2\t  \r\n\r\n";
+    const cleaned = cleanTerminalOutput(raw);
+    assert.equal(cleaned, "line 1\n\nline 2");
+  });
+});
+
+describe("handleSubagentPeek", () => {
+  function makeMockRunning(overrides: Partial<RunningSubagent> = {}): RunningSubagent {
+    return {
+      id: "sub-1",
+      name: "Worker",
+      task: "build feature",
+      surface: "%1",
+      startTime: Date.now() - 5000,
+      sessionFile: "/tmp/sub-1.jsonl",
+      interactive: false,
+      statusState: createStatusState({ source: "pi", startTimeMs: Date.now() - 5000 }),
+      ...overrides,
+    } as RunningSubagent;
+  }
+
+  it("returns error when target id or name is not found", () => {
+    const runningMap = new Map<string, RunningSubagent>();
+    const result = handleSubagentPeek({ id: "non-existent" }, runningMap);
+    assert.ok(result.details.error);
+    assert.match(result.content[0].text, /No running subagent with id "non-existent"/);
+  });
+
+  it("successfully peeks running subagent and clamps line count", () => {
+    const runningMap = new Map<string, RunningSubagent>();
+    const running = makeMockRunning({ id: "sub-peek", name: "Peeker", surface: "%10" });
+    runningMap.set(running.id, running);
+
+    let recordedSurface = "";
+    let recordedLines = 0;
+    const mockPeek = (surface: string, lines?: number) => {
+      recordedSurface = surface;
+      recordedLines = lines ?? 0;
+      return "cleaned output line 1\nline 2";
+    };
+
+    // Low clamping: 2 -> 5
+    const resLow = handleSubagentPeek({ id: "sub-peek", lines: 2 }, runningMap, mockPeek);
+    assert.equal(recordedSurface, "%10");
+    assert.equal(recordedLines, 5);
+    assert.equal(resLow.details.lines, 5);
+    assert.equal(resLow.details.name, "Peeker");
+    assert.equal(resLow.content[0].text, "cleaned output line 1\nline 2");
+
+    // High clamping: 500 -> 150
+    const resHigh = handleSubagentPeek({ id: "sub-peek", lines: 500 }, runningMap, mockPeek);
+    assert.equal(recordedLines, 150);
+    assert.equal(resHigh.details.lines, 150);
+
+    // Default: undefined -> 40
+    handleSubagentPeek({ id: "sub-peek" }, runningMap, mockPeek);
+    assert.equal(recordedLines, 40);
+  });
+
+  it("safely catches and formats peek errors if mux throws", () => {
+    const runningMap = new Map<string, RunningSubagent>();
+    const running = makeMockRunning({ id: "sub-peek", name: "Peeker", surface: "%10" });
+    runningMap.set(running.id, running);
+
+    const failingPeek = () => {
+      throw new Error("tmux capture failed");
+    };
+    const result = handleSubagentPeek({ id: "sub-peek" }, runningMap, failingPeek);
+    assert.ok(result.details.error);
+    assert.match(result.details.error, /tmux capture failed/);
+    assert.match(result.content[0].text, /Failed to peek into subagent "Peeker"/);
+  });
+});
+
+describe("handleSubagentSteer", () => {
+  function makeMockRunning(overrides: Partial<RunningSubagent> = {}): RunningSubagent {
+    return {
+      id: "sub-1",
+      name: "Worker",
+      task: "build feature",
+      surface: "%1",
+      startTime: Date.now() - 5000,
+      sessionFile: "/tmp/sub-1.jsonl",
+      interactive: false,
+      statusState: createStatusState({ source: "pi", startTimeMs: Date.now() - 5000 }),
+      ...overrides,
+    } as RunningSubagent;
+  }
+
+  it("rejects empty or whitespace-only message", () => {
+    const runningMap = new Map<string, RunningSubagent>();
+    const result = handleSubagentSteer({ id: "sub-1", message: "   " }, runningMap, () => {});
+    assert.ok(result.details.error);
+    assert.match(result.content[0].text, /Provide a non-empty message/);
+  });
+
+  it("returns error with subagent_resume hint when target is not running", () => {
+    const runningMap = new Map<string, RunningSubagent>();
+    const result = handleSubagentSteer({ id: "closed-agent", message: "hello" }, runningMap, () => {});
+    assert.ok(result.details.error);
+    assert.match(result.content[0].text, /subagent_resume/);
+  });
+
+  it("successfully delivers steer text with interrupt: false", () => {
+    const runningMap = new Map<string, RunningSubagent>();
+    const running = makeMockRunning({ id: "steer-1", name: "Worker", surface: "%20" });
+    runningMap.set(running.id, running);
+
+    let deliveredText = "";
+    let deliveredOpts: any = null;
+    let widgetUpdated = false;
+
+    const mockSteer = (surface: string, text: string, opts?: any) => {
+      deliveredText = text;
+      deliveredOpts = opts;
+    };
+
+    const res = handleSubagentSteer(
+      { id: "steer-1", message: "proceed with next task", interrupt: false },
+      runningMap,
+      () => { widgetUpdated = true; },
+      mockSteer,
+    );
+
+    assert.equal(deliveredText, "proceed with next task");
+    assert.equal(deliveredOpts?.interrupt, false);
+    assert.equal(widgetUpdated, false);
+    assert.equal(res.details.interrupted, false);
+    assert.match(res.content[0].text, /Sent guidance to subagent "Worker"/);
+  });
+
+  it("delivers steer text with interrupt: true, triggering status waiting and widget update", () => {
+    const runningMap = new Map<string, RunningSubagent>();
+    const running = makeMockRunning({ id: "steer-2", name: "Worker", surface: "%20" });
+    runningMap.set(running.id, running);
+
+    let deliveredOpts: any = null;
+    let widgetUpdated = false;
+
+    const mockSteer = (_surface: string, _text: string, opts?: any) => {
+      deliveredOpts = opts;
+    };
+
+    const res = handleSubagentSteer(
+      { id: "steer-2", message: "stop and rethink", interrupt: true },
+      runningMap,
+      () => { widgetUpdated = true; },
+      mockSteer,
+    );
+
+    assert.equal(deliveredOpts?.interrupt, true);
+    assert.equal(widgetUpdated, true);
+    assert.equal(res.details.interrupted, true);
+    assert.match(res.content[0].text, /Interrupted turn and sent guidance to/);
+    assert.equal(running.statusState.currentKind, "waiting");
+    assert.equal(running.statusState.activityLabel, "interrupted");
+  });
+
+  it("safely handles errors if steer throws", () => {
+    const runningMap = new Map<string, RunningSubagent>();
+    const running = makeMockRunning({ id: "steer-err", name: "Worker", surface: "%20" });
+    runningMap.set(running.id, running);
+
+    const failingSteer = () => {
+      throw new Error("backend disconnected");
+    };
+
+    const res = handleSubagentSteer(
+      { id: "steer-err", message: "hello" },
+      runningMap,
+      () => {},
+      failingSteer,
+    );
+
+    assert.ok(res.details.error);
+    assert.match(res.details.error, /backend disconnected/);
+    assert.match(res.content[0].text, /Failed to steer subagent "Worker"/);
+  });
+});
+
+describe("peek and steer tool registration", () => {
+  it("includes subagent_peek and subagent_steer in ORCHESTRATOR_TOOLS", () => {
+    assert.ok((ORCHESTRATOR_TOOLS as readonly string[]).includes("subagent_peek"));
+    assert.ok((ORCHESTRATOR_TOOLS as readonly string[]).includes("subagent_steer"));
+  });
+
+  it("registers subagent_peek and subagent_steer tools with non-throwing renderers", () => {
+    const { api, registeredTools } = createMockExtensionApi();
+    (subagentsModule as any).default(api);
+
+    const peekTool = registeredTools.find((t: any) => t.name === "subagent_peek");
+    const steerTool = registeredTools.find((t: any) => t.name === "subagent_steer");
+
+    assert.ok(peekTool, "subagent_peek should be registered");
+    assert.ok(steerTool, "subagent_steer should be registered");
+
+    const theme = {
+      fg(_color: string, text: string) { return text; },
+      bold(text: string) { return text; },
+    };
+
+    const peekCall = peekTool.renderCall({ id: "sub-1", lines: 30 }, theme);
+    assert.ok(peekCall);
+    const steerCall = steerTool.renderCall({ id: "sub-1", message: "do X", interrupt: true }, theme);
+    assert.ok(steerCall);
+
+    const peekRes = peekTool.renderResult({ content: [{ text: "terminal text" }], details: { name: "Worker", lines: 30 } }, {}, theme);
+    assert.ok(peekRes);
+    const steerRes = steerTool.renderResult({ content: [{ text: "steered" }], details: { name: "Worker", interrupted: true } }, {}, theme);
+    assert.ok(steerRes);
+  });
+});
+
+describe("multiplexer prompt injection", () => {
+  it("injects multiplexer environment context and tool guidance into system prompt", async () => {
+    const { capturedHandlers, api } = createMockExtensionApi();
+    const { registerPromptInject } = await import("../pi-extension/subagents/prompt-inject.ts");
+
+    const previousCwd = process.cwd();
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    const previousSubagentName = process.env.PI_SUBAGENT_NAME;
+    delete process.env.PI_SUBAGENT_NAME;
+
+    const root = mkdtempSync(join(tmpdir(), "pi-test-prompt-mux-"));
+    const globalDir = join(root, "global");
+    const projectDir = join(root, "project");
+    const projectAgentsDir = join(projectDir, ".pi", "agents");
+    mkdirSync(projectAgentsDir, { recursive: true });
+    mkdirSync(globalDir, { recursive: true });
+
+    writeAgentFile(projectAgentsDir, "worker", "name: worker");
+
+    process.chdir(projectDir);
+    process.env.PI_CODING_AGENT_DIR = globalDir;
+
+    try {
+      registerPromptInject(api as any);
+      const handler = capturedHandlers["before_agent_start"];
+      assert.ok(handler, "before_agent_start handler registered");
+
+      const result = handler({ systemPrompt: "base prompt" }, {});
+      const injected = result.systemPrompt;
+
+      assert.ok(injected.includes("`subagent_peek`"), "missing subagent_peek");
+      assert.ok(injected.includes("`subagent_steer`"), "missing subagent_steer");
+      assert.ok(injected.includes("### Multiplexer Environment"), "missing Multiplexer Environment header");
+      assert.ok(injected.includes("Pane Layout:"), "missing Pane Layout");
+      assert.ok(injected.includes("Live Monitoring & Steering:"), "missing Live Monitoring guidance");
+    } finally {
+      process.chdir(previousCwd);
+      restoreEnvVar("PI_CODING_AGENT_DIR", previousAgentDir);
+      restoreEnvVar("PI_SUBAGENT_NAME", previousSubagentName);
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
