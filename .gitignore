@@ -35,3 +35,6 @@ test/coverage/
 # Git worktrees (parallel sub-agent workers)
 /.worktrees
 .worktrees/
+
+# Beads / Dolt files (added by bd init)
+.beads/proxieddb/
