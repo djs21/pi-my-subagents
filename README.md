@@ -17,7 +17,7 @@ pi install git:github.com/<your-username>/pi-my-subagent
 Supported multiplexers:
 
 - [tmux](https://github.com/tmux/tmux)
-- [herdr](https://herdr.dev) (terminal-native agent multiplexer)
+- [herdr](https://herdr.dev) (terminal-native agent multiplexer — bundled skill included)
 
 Start pi inside one of them:
 
@@ -98,6 +98,21 @@ A `subagent_result` steer message with the payload arrives automatically, descri
 | Direction | Mechanism | Tool |
 |-----------|-----------|------|
 | Sub-agent → Main | Sidecar exit file | `subagent_done()` |
+| Main → Sub-agent (live) | Mux terminal write | `subagent_steer()` |
+| Main → Sub-agent (inspect) | Mux screen capture | `subagent_peek()` |
+| Main → Sub-agent (resume) | New session turn | `subagent_resume()` |
+
+## Orchestration Tools Reference
+
+| Tool | Purpose | Key Parameters |
+|------|---------|----------------|
+| `subagent` | Spawns an async sub-agent in a dedicated mux pane/window. | `task`, `name?`, `agent?`, `fork?`, `cwd?`, `tools?` |
+| `subagent_status` | Returns a live status snapshot for all running subagents (immediate, unthrottled). | *(none)* |
+| `subagent_peek` | Reads terminal output from a running subagent's pane with ANSI stripping and line clamping. | `id` or `name`, `lines?` (5–150, default 40) |
+| `subagent_steer` | Injects text instructions directly into a running subagent's terminal with optional turn cancellation. | `id` or `name`, `message`, `interrupt?` (boolean) |
+| `subagent_interrupt` | Sends Escape and aborts/terminates a running subagent pane immediately. | `id` or `name` |
+| `subagent_resume` | Resumes an existing subagent session file for follow-up turns. | `sessionPath`, `message`, `autoExit?` |
+| `subagents_list` | Discovers and lists all available subagent definitions and configurations. | *(none)* |
 
 ## Configuration — `subagent-config.json`
 

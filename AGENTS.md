@@ -107,6 +107,7 @@ Before every action, Orc must cycle through:
 - `docs/research/*.md` — research reports (technical deep-dives)
 - `docs/review/*.md` — code reviews, feasibility analyses, design assessments
 - `test/` — test files (covered by `pi-extension/subagents/` module)
+- `skills/herdr/SKILL.md` — bundled official Herdr agent skill
 - `package.json` — project metadata
 - `README.md` — project overview
 

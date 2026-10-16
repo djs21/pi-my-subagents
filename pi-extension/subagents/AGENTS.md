@@ -6,7 +6,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 
 ## Ownership
 
-- **`mux.ts`** — tmux/herdr backend abstraction (createSurface, sendCommand, pollForExit, etc.)
+- **`mux.ts`** — tmux/herdr backend abstraction (createSurface, sendCommand, pollForExit, peekSurface, steerSurface, stripAnsi, cleanTerminalOutput, etc.)
 - **`herdr-mux.ts`** — herdr backend resize functions. Height: herdrResizeStack, herdrGetPaneHeight. Width: herdrResizeWidths, herdrGetPaneWidth.
 - **`tmux-mux.ts`** — tmux backend resize functions. Height: tmuxResizeStack, tmuxGetPaneHeight. Width: tmuxResizeWidths, tmuxGetPaneWidth.
 - **`mux-layout.ts`** — layout engine for subagent panes (createTileSurface, equalizePanes, DEFAULT_SPLIT_RATIO). Supports tiling (DWM-style) and bottom-stack layouts via layoutMode parameter. State: lastSubagentSurface, stackPanes.
@@ -21,8 +21,8 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **`session.ts`** — session file management (read/write/merge)
 - **`agent.ts`** — agent definition loading, defaults resolution, path resolution, config parsing
 - **Tool/skill/extension override = append**: subagent-config.json `tools`/`skills`/`extensions` are ADDED to the agent .md base list (deduped), never replace it. `model` replaces. Evaluation order: tool arguments > project config > global config > frontmatter .md.
-- **`prompt-inject.ts`** — `before_agent_start` hook that appends available sub-agents to the system prompt
-- **`interrupt.ts`** — interrupt/signal handling for running subagents
+- **`prompt-inject.ts`** — `before_agent_start` hook that appends available sub-agents and active multiplexer environment context / steering guidance to the system prompt
+- **`interrupt.ts`** — signal handling, live terminal peeking (`handleSubagentPeek`), and interactive steering (`handleSubagentSteer`) for running subagents
 - **`renderers.ts`** — message renderers for result/status/stalled
 - **`subagent-done.ts`** — subagent completion sidecar handler + the mandatory `subagent_done` self-termination tool (single exit path; no caller_ping)
 - **`widget.ts`** — live widget rendering for the TUI. Child status (blocked/active tool counts) is shown directly in the widget with no keybinding (no Alt+= toggle).
@@ -39,7 +39,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **Agent sanitasi**: when `params.agent` is not passed explicitly, `spin.ts` first tries exact name match against agent definitions, then falls back to **prefix matching** — e.g. name "worker-fix-timer" resolves to "worker" agent defaults (tools, model, skills, mode). Implemented via `agent.ts:resolveAgentByPrefix()`.
 - **Fallback ke worker**: ketika exact match AND prefix match gagal, sub-agent mendapat agent defaults `worker` utuh (tools: read,bash,write,edit, model: claude-sonnet-4-6, auto-exit, worker system prompt).
 - **Default tool inheritance**: sub-agent mewarisi SEMUA tool yang tersedia di lingkungan Pi secara default (termasuk tool dari ekstensi lain). `buildSubagentToolAllowlist()` hanya menghasilkan `--tools` bila agent/params secara eksplisit mengonfigurasi `tools`; tanpa konfigurasi, tidak ada allowlist (full inherit). Tidak ada lagi fallback kaku `read,bash`.
-- **Orchestrator tool denial selalu aktif**: `resolveDenyTools()` selalu men-deny `subagent`, `subagent_resume`, `subagent_interrupt`, `subagent_status`, `subagents_list` (lihat `types.ts:ORCHESTRATOR_TOOLS`), ditambah `deny-tools` frontmatter dan override project/global config. Diterapkan dua arah: argumen CLI `--exclude-tools` (via `buildSubagentToolDenyArgs()`) dan env `PI_DENY_TOOLS` (dibaca `index.ts` untuk skip registrasi tool).
+- **Orchestrator tool denial selalu aktif**: `resolveDenyTools()` selalu men-deny `subagent`, `subagent_resume`, `subagent_interrupt`, `subagent_status`, `subagents_list`, `subagent_peek`, `subagent_steer` (lihat `types.ts:ORCHESTRATOR_TOOLS`), ditambah `deny-tools` frontmatter dan override project/global config. Diterapkan dua arah: argumen CLI `--exclude-tools` (via `buildSubagentToolDenyArgs()`) dan env `PI_DENY_TOOLS` (dibaca `index.ts` untuk skip registrasi tool).
 - **Skill inheritance**: sub-agent mewarisi SEMUA skill secara default, kecuali agent secara eksplisit memiliki `skill:` frontmatter (maka `--no-skills` dipakai). `agents.<name>.skills` di config bersifat append (deduped).
 - `prompt-inject.ts` guards orchestration notice via `PI_SUBAGENT_NAME` — only injects `<!-- subagent-orch-start -->` for the main agent, NOT sub-agents
 - Agent `.md` files use `system-prompt: replace` (was `append`). The agent body IS the complete system prompt — must embed tool definitions and usage guidelines
@@ -49,6 +49,9 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **Resume Tool & Agent Auto-Detection**: `resume.ts:resolveResumeAgent` automatically inspects the target session file's header for the original `agent` name via `session.ts:getSessionAgent`. Fallback chain: explicit `params.agent` → session header `agent` → prefix match → `worker` defaults. `resolveResumeTools` honors explicit `params.tools` as a `--tools` allowlist, otherwise the resumed session inherits the full environment tool surface. Orchestrator tools are always denied on resume.
 - `subagent_status` tool returns a **live snapshot immediately on every call** — no rate limiting or throttling. Status changes are also auto-delivered as steers. Callers can poll as often as needed; each invocation recomputes state from `runningSubagents`.
 - **Single exit via `subagent_done`**: an auto-exit sub-agent terminates itself exactly once by calling `subagent_done`, which writes the `.exit` sidecar. There is no `caller_ping` tool and no separate help-request path — the exit sidecar is the only child→parent completion channel.
+- **Live monitoring via `subagent_peek`**: orchestrator can peek into a running subagent's terminal buffer at any time. Terminal output is automatically stripped of ANSI escape codes and normalized/compacted. Line count is clamped between 5 and 150 (default: 40) to prevent token bloat.
+- **Live steering via `subagent_steer`**: orchestrator can inject text messages/guidance directly into a running subagent's terminal. Supports `interrupt: true` to send Escape first, aborting the active turn before delivering the steer message. If the subagent has already exited, the tool safely fails with a hint to use `subagent_resume`.
+- **Multiplexer context injection**: `prompt-inject.ts` injects active multiplexer details (backend name, session, window/pane surface) and peek/steer steering guidance directly into the main agent's system prompt before each session.
 - **Abort is manual**: running sub-agents are cancelled only through `subagent_interrupt` or session shutdown. There is no automatic stalled-subagent cleanup timer / auto-kill; the `stalled` status is a display-only state.
 
 ## Work Guidance
@@ -63,7 +66,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 
 ## Verification
 
-- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts, interrupt, renderers, widget, agent defaults, subagent-done, `subagent_status` live-snapshot behavior (immediate returns across repeated calls, no throttled flag), shared.ts export surface (throttle/backoff helpers removed), pure monocle layout, resume tool inheritance, prompt-inject orchestration tools, and config parsing (enabled, lineLimit, rejection of removed `minIntervalMs`)
+- Unit tests in `test/test.ts` cover: session.ts, status.ts, mux.ts (terminal output cleaning, stripAnsi, cleanTerminalOutput), interrupt (interrupt, handleSubagentPeek, handleSubagentSteer), renderers, widget, agent defaults, subagent-done, `subagent_status` live-snapshot behavior (immediate returns across repeated calls, no throttled flag), shared.ts export surface (throttle/backoff helpers removed), pure monocle layout, resume tool inheritance, prompt-inject orchestration tools & multiplexer context awareness, and config parsing (enabled, lineLimit, rejection of removed `minIntervalMs`)
 - Run: `npm test`
 
 ## Child DOX Index
