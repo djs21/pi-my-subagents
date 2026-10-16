@@ -103,6 +103,7 @@ export const ORCHESTRATOR_TOOLS = [
   "subagent",
   "subagent_resume",
   "subagent_interrupt",
+  "subagent_peek",
   "subagent_status",
   "subagents_list",
 ] as const;

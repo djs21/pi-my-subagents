@@ -25,6 +25,7 @@ import {
   sendEscape,
   getMuxBackend,
   closeSurface,
+  peekSurface,
 } from "./mux.ts";
 
 // ─── Monitoring ─────────────────────────────────────────────────
@@ -148,6 +149,47 @@ export function handleSubagentInterrupt(
     content: [{ type: "text" as const, text: `Sub-agent "${running.name}" aborted (interrupted and terminated).` }],
     details: { id: running.id, name: running.name, status: "interrupt_requested" },
   };
+}
+
+export function handleSubagentPeek(
+  params: { id?: string; name?: string; lines?: number },
+  runningSubagents: Map<string, RunningSubagent>,
+  peekSurfaceFn: (surface: string, lines?: number) => string = peekSurface,
+) {
+  const resolved = resolveInterruptTarget(params, runningSubagents);
+  if ("error" in resolved) {
+    return {
+      content: [{ type: "text" as const, text: resolved.error }],
+      details: { error: resolved.error },
+    };
+  }
+
+  const running = resolved.running;
+  const lineCount = Math.max(5, Math.min(150, params.lines ?? 40));
+
+  try {
+    const screen = peekSurfaceFn(running.surface, lineCount);
+    const now = Date.now();
+    observeRunningSubagent(running, now);
+
+    const formatted = screen.length > 0 ? screen : "(terminal buffer is empty)";
+    return {
+      content: [{ type: "text" as const, text: formatted }],
+      details: {
+        id: running.id,
+        name: running.name,
+        surface: running.surface,
+        lines: lineCount,
+        text: formatted,
+      },
+    };
+  } catch (error: any) {
+    const msg = `Failed to peek into subagent "${running.name}": ${error?.message ?? String(error)}`;
+    return {
+      content: [{ type: "text" as const, text: msg }],
+      details: { error: msg, id: running.id, name: running.name },
+    };
+  }
 }
 
 // ─── Status refresh loop ────────────────────────────────────────

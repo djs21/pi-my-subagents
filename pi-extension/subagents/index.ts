@@ -72,6 +72,7 @@ import {
 } from "./widget.ts";
 import {
   handleSubagentInterrupt as interruptHandleSubagentInterrupt,
+  handleSubagentPeek,
   resolveInterruptTarget as interruptResolveInterruptTarget,
   requestSubagentInterrupt,
   startStatusRefresh,
@@ -212,6 +213,53 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
         const text = typeof result.content[0]?.text === "string" ? result.content[0].text : "";
         return new Text(theme.fg("dim", text), 0, 0);
+      },
+    });
+
+  // ── subagent_peek tool ──
+  if (shouldRegister("subagent_peek"))
+    pi.registerTool({
+      name: "subagent_peek",
+      label: "Peek Subagent",
+      description:
+        "Inspect the live terminal screen of a running subagent pane. " +
+        "Returns recent cleaned terminal lines (ANSI stripped, whitespace normalized). " +
+        "Use this to check ongoing progress, inspect error traces, or verify prompts before steering or interrupting.",
+      promptSnippet:
+        "Inspect the live terminal screen of a running subagent pane. " +
+        "Returns recent cleaned terminal lines. " +
+        "Useful for live progress checks without interrupting.",
+      parameters: Type.Object({
+        id: Type.Optional(Type.String({ description: "Exact running subagent id" })),
+        name: Type.Optional(Type.String({ description: "Exact running subagent display name" })),
+        lines: Type.Optional(Type.Number({ description: "Number of terminal lines to inspect (5..150, default 40)" })),
+      }),
+
+      async execute(_toolCallId, params) {
+        return handleSubagentPeek(params, runningSubagents);
+      },
+
+      renderCall(args, theme) {
+        const target = args.id ? `${args.id}` : args.name ?? "(unknown)";
+        const linesStr = args.lines ? ` (${args.lines} lines)` : "";
+        return new Text(
+          theme.fg("accent", "▸") +
+            " " +
+            theme.fg("toolTitle", theme.bold(target)) +
+            theme.fg("dim", ` — peek terminal${linesStr}`),
+          0,
+          0,
+        );
+      },
+
+      renderResult(result, _opts, theme) {
+        const details = result.details as any;
+        if (details?.error) {
+          return new Text(theme.fg("dim", details.error), 0, 0);
+        }
+        const text = typeof result.content[0]?.text === "string" ? result.content[0].text : "";
+        const header = theme.fg("accent", `[peek: ${details.name ?? details.id} | ${details.lines ?? 40} lines]`) + "\n";
+        return new Text(header + theme.fg("dim", text), 0, 0);
       },
     });
 
