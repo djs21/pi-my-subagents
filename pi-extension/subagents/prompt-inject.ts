@@ -9,6 +9,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { discoverAgentDefinitions } from "./agent.ts";
 import type { ListedAgentDefinition } from "./types.ts";
+import { getMuxBackend } from "./mux.ts";
+import { loadSubagentConfig } from "./config.ts";
 
 const START = "<!-- subagent-orch-start -->";
 const END = "<!-- subagent-orch-end -->";
@@ -23,6 +25,8 @@ Before every action (reading a file, writing, editing, spawning an agent, or run
 
 const ORCHESTRATION_TOOLS = [
   "- `subagent_status` — check sub-agent progress. Returns a live snapshot immediately on every call; status changes also arrive automatically as steer messages — call when: user asked, suspected stall, or silent exit.",
+  "- `subagent_peek` — inspect live terminal output of a running subagent pane (ANSI-stripped). Check progress without interrupting.",
+  "- `subagent_steer` — inject live guidance or corrections directly into a running subagent pane. Set interrupt: true to cancel active turn first.",
   "- `subagent_interrupt` — send an interrupt signal to a running sub-agent.",
   "- `subagents_list` — list all active sub-agents.",
 ].join("\n");
@@ -73,6 +77,22 @@ export function registerPromptInject(pi: ExtensionAPI): void {
   });
 }
 
+function formatMultiplexerContext(): string {
+  const backend = getMuxBackend();
+  const callerPane = backend === "tmux" ? process.env.TMUX_PANE : backend === "herdr" ? process.env.HERDR_PANE_ID : undefined;
+  const layout = loadSubagentConfig(process.cwd())?.layout ?? "tiling";
+
+  const lines = [
+    "### Multiplexer Environment",
+    `- Backend: ${backend ? `**${backend}**` : "none (direct terminal)"}`,
+    callerPane ? `- Orchestrator Pane: \`${callerPane}\`` : "",
+    `- Pane Layout: \`${layout}\``,
+    "- Live Monitoring & Steering: Use `subagent_peek` to inspect terminal output before deciding to steer or interrupt.",
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
 function formatAgentSection(agents: ListedAgentDefinition[]): string {
   const agentLines = agents.map(formatAgentLine).join("\n\n");
 
@@ -82,6 +102,7 @@ function formatAgentSection(agents: ListedAgentDefinition[]): string {
     "- For complex multi-file changes, delegate to Worker for isolation",
     "- For code review → Reviewer",
     ORCHESTRATION_TOOLS,
+    formatMultiplexerContext(),
     OODA_REMINDER,
     RESUME_CONVENTION,
   ].join("\n");
