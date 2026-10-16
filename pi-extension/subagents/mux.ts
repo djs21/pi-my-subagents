@@ -377,6 +377,102 @@ export async function readScreenAsync(surface: string, lines = 50): Promise<stri
 }
 
 /**
+ * Strip ANSI escape codes from text.
+ */
+export function stripAnsi(text: string): string {
+  return text.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+}
+
+/**
+ * Clean raw terminal output for readable display:
+ * - normalizes CRLF to LF
+ * - strips ANSI codes
+ * - trims trailing whitespace per line
+ * - collapses consecutive empty lines
+ * - trims leading and trailing blank lines
+ */
+export function cleanTerminalOutput(raw: string): string {
+  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const stripped = stripAnsi(normalized);
+  const lines = stripped.split("\n").map((line) => line.trimEnd());
+  const collapsed: string[] = [];
+  let prevEmpty = false;
+  for (const line of lines) {
+    const isEmpty = line.length === 0;
+    if (isEmpty && prevEmpty) continue;
+    collapsed.push(line);
+    prevEmpty = isEmpty;
+  }
+  while (collapsed.length > 0 && collapsed[0].length === 0) collapsed.shift();
+  while (collapsed.length > 0 && collapsed[collapsed.length - 1].length === 0) collapsed.pop();
+  return collapsed.join("\n");
+}
+
+/**
+ * Peek at the screen contents of a pane, formatted and cleaned for display.
+ */
+export function peekSurface(surface: string, lines = 40): string {
+  const backend = requireMuxBackend();
+  if (!isSurfaceValidForBackend(surface, backend)) {
+    throw new Error(`Surface ID "${surface}" does not match active mux backend "${backend}".`);
+  }
+
+  const lineCount = Math.max(1, lines);
+  let raw = "";
+
+  if (backend === "herdr") {
+    try {
+      raw = execFileSync("herdr", ["pane", "read", surface, "--source", "recent-unwrapped", "--lines", String(lineCount)], { encoding: "utf8" });
+    } catch {
+      raw = execFileSync("herdr", ["pane", "read", surface, "--source", "recent", "--lines", String(lineCount)], { encoding: "utf8" });
+    }
+  } else if (backend === "tmux") {
+    raw = execFileSync(
+      "tmux",
+      ["capture-pane", "-p", "-t", surface, "-S", `-${lineCount}`],
+      { encoding: "utf8" },
+    );
+  } else {
+    throw new Error(`Unsupported mux backend: ${backend}`);
+  }
+
+  return cleanTerminalOutput(raw);
+}
+
+/**
+ * Steer a running pane with text, optionally interrupting current turn first.
+ */
+export function steerSurface(surface: string, text: string, options?: { interrupt?: boolean }): void {
+  const backend = requireMuxBackend();
+  if (!isSurfaceValidForBackend(surface, backend)) {
+    throw new Error(`Surface ID "${surface}" does not match active mux backend "${backend}".`);
+  }
+
+  if (options?.interrupt) {
+    sendEscape(surface);
+    try {
+      execFileSync("sleep", ["0.15"]);
+    } catch {
+      // fallback if sleep command is unavailable
+    }
+  }
+
+  if (backend === "herdr") {
+    execFileSync("herdr", ["pane", "send-text", surface, text], { encoding: "utf8" });
+    execFileSync("herdr", ["pane", "send-keys", surface, "Enter"], { encoding: "utf8" });
+    return;
+  }
+
+  if (backend === "tmux") {
+    execFileSync("tmux", ["send-keys", "-t", surface, "-l", text], { encoding: "utf8" });
+    execFileSync("tmux", ["send-keys", "-t", surface, "Enter"], { encoding: "utf8" });
+    return;
+  }
+
+  throw new Error(`Unsupported mux backend: ${backend}`);
+}
+
+/**
  * Close a pane.
  */
 export function closeSurface(surface: string): void {
