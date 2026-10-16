@@ -26,6 +26,7 @@ import {
   getMuxBackend,
   closeSurface,
   peekSurface,
+  steerSurface,
 } from "./mux.ts";
 
 // ─── Monitoring ─────────────────────────────────────────────────
@@ -185,6 +186,60 @@ export function handleSubagentPeek(
     };
   } catch (error: any) {
     const msg = `Failed to peek into subagent "${running.name}": ${error?.message ?? String(error)}`;
+    return {
+      content: [{ type: "text" as const, text: msg }],
+      details: { error: msg, id: running.id, name: running.name },
+    };
+  }
+}
+
+export function handleSubagentSteer(
+  params: { id?: string; name?: string; message: string; interrupt?: boolean },
+  runningSubagents: Map<string, RunningSubagent>,
+  onUpdateWidget: () => void,
+  steerSurfaceFn: (surface: string, text: string, options?: { interrupt?: boolean }) => void = steerSurface,
+) {
+  const message = (params.message ?? "").trim();
+  if (!message) {
+    return {
+      content: [{ type: "text" as const, text: "Provide a non-empty message to steer the subagent." }],
+      details: { error: "Empty message" },
+    };
+  }
+
+  const resolved = resolveInterruptTarget(params, runningSubagents);
+  if ("error" in resolved) {
+    const hint = `${resolved.error} If the subagent has already completed or closed, use subagent_resume to start a new turn.`;
+    return {
+      content: [{ type: "text" as const, text: hint }],
+      details: { error: resolved.error },
+    };
+  }
+
+  const running = resolved.running;
+  const now = Date.now();
+
+  try {
+    steerSurfaceFn(running.surface, message, { interrupt: params.interrupt ?? false });
+    observeRunningSubagent(running, now);
+    if (params.interrupt) {
+      running.statusState = forceStatusAfterInterrupt(running.statusState, now);
+      onUpdateWidget();
+    }
+
+    const action = params.interrupt ? "Interrupted turn and sent guidance to" : "Sent guidance to";
+    return {
+      content: [{ type: "text" as const, text: `${action} subagent "${running.name}".` }],
+      details: {
+        id: running.id,
+        name: running.name,
+        surface: running.surface,
+        interrupted: !!params.interrupt,
+        message,
+      },
+    };
+  } catch (error: any) {
+    const msg = `Failed to steer subagent "${running.name}": ${error?.message ?? String(error)}`;
     return {
       content: [{ type: "text" as const, text: msg }],
       details: { error: msg, id: running.id, name: running.name },

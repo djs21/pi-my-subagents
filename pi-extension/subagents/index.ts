@@ -73,6 +73,7 @@ import {
 import {
   handleSubagentInterrupt as interruptHandleSubagentInterrupt,
   handleSubagentPeek,
+  handleSubagentSteer,
   resolveInterruptTarget as interruptResolveInterruptTarget,
   requestSubagentInterrupt,
   startStatusRefresh,
@@ -260,6 +261,56 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         const text = typeof result.content[0]?.text === "string" ? result.content[0].text : "";
         const header = theme.fg("accent", `[peek: ${details.name ?? details.id} | ${details.lines ?? 40} lines]`) + "\n";
         return new Text(header + theme.fg("dim", text), 0, 0);
+      },
+    });
+
+  // ── subagent_steer tool ──
+  if (shouldRegister("subagent_steer"))
+    pi.registerTool({
+      name: "subagent_steer",
+      label: "Steer Subagent",
+      description:
+        "Send live guidance, corrections, or follow-up instructions to an active running subagent pane without restarting its session. Set interrupt: true to cancel any in-progress turn first before sending the message.",
+      promptSnippet:
+        "Send live guidance to an active subagent pane. Set interrupt: true to abort current turn first.",
+      parameters: Type.Object({
+        id: Type.Optional(Type.String({ description: "Exact running subagent id" })),
+        name: Type.Optional(Type.String({ description: "Exact running subagent display name" })),
+        message: Type.String({ description: "Instruction, prompt, or feedback to send to the subagent" }),
+        interrupt: Type.Optional(Type.Boolean({ description: "If true, send Escape first to abort current turn before injecting message (default false)" })),
+      }),
+
+      async execute(_toolCallId, params) {
+        return handleSubagentSteer(params, runningSubagents, subagentUpdateWidget);
+      },
+
+      renderCall(args, theme) {
+        const target = args.id ? `${args.id}` : args.name ?? "(unknown)";
+        const preview = typeof args.message === "string" ? args.message.slice(0, 50) : "";
+        const badge = args.interrupt ? " (interrupt)" : "";
+        return new Text(
+          theme.fg("accent", "▸") +
+            " " +
+            theme.fg("toolTitle", theme.bold(target)) +
+            theme.fg("dim", ` — steer: "${preview}"${badge}`),
+          0,
+          0,
+        );
+      },
+
+      renderResult(result, _opts, theme) {
+        const details = result.details as any;
+        if (details?.error) {
+          return new Text(theme.fg("dim", details.error), 0, 0);
+        }
+        return new Text(
+          theme.fg("accent", "✔ ") +
+            theme.fg("toolTitle", theme.bold(details.name ?? details.id ?? "subagent")) +
+            " — " +
+            theme.fg("dim", details.interrupted ? "interrupted & steered" : "steered"),
+          0,
+          0,
+        );
       },
     });
 
