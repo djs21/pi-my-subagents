@@ -16,8 +16,8 @@ Bundled agent definitions for the pi-my-subagent extension. Each `.md` file defi
 
 - Agent definitions are markdown files with YAML frontmatter for model, tools, skills, and body
 - Agent names should be lowercase for case-insensitive matching in `agent.ts:loadAgentDefaults()`
-- All agent defs use `system-prompt: replace` (was `append`). The body IS the complete system prompt — must contain everything the agent needs to function
-- Every agent body embeds its own tool definitions block so the agent knows available tools when pi base prompt is replaced
+- All agent defs use `system-prompt: append`. Pi automatically provides base system instructions, dynamic tool schemas, and tool usage guidelines, while the agent body appends role-specific focus, tool priorities, and workflow rules
+- Agent bodies specify tool usage priorities (preferring dedicated tools over bash) without duplicating tool definitions already maintained by Pi
 - Skills can be added via `skill:` (singular) or `skills:` (plural) in frontmatter, or via `agents.<name>.skills` in `subagent-config.json` (project or global)
 - Agents without explicit `skill:` frontmatter inherit the parent Pi environment's skills by default (no `--no-skills`). `--no-skills` is applied only when an agent explicitly configures skills, so the explicit set is not diluted
 
@@ -27,7 +27,7 @@ Bundled agent definitions for the pi-my-subagent extension. Each `.md` file defi
 - Agent definitions are auto-discovered by `agent.ts:discoverAgentDefinitions()`
 - Agents default to inheriting all environment tools; orchestrator tools (subagent, subagent_resume, subagent_interrupt, subagent_status, subagents_list) are always denied via `enforce.ts`
 - The `autoExit: true` frontmatter flag makes a subagent run autonomously (no user interaction)
-- **Keep prompts minimal**: each agent body should only contain what that agent type needs. Tool definitions + role instructions + task workflow is enough. No pi docs references, no AGENTS.md dump, no skill library.
+- **Keep prompts minimal**: each agent body should only contain role-specific focus, tool usage priorities, and workflow rules. Do not duplicate Pi's automatic tool descriptions or base system rules.
 
 ## Verification
 

@@ -42,7 +42,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - **Orchestrator tool denial selalu aktif**: `resolveDenyTools()` selalu men-deny `subagent`, `subagent_resume`, `subagent_interrupt`, `subagent_status`, `subagents_list`, `subagent_peek`, `subagent_steer` (lihat `types.ts:ORCHESTRATOR_TOOLS`), ditambah `deny-tools` frontmatter dan override project/global config. Diterapkan dua arah: argumen CLI `--exclude-tools` (via `buildSubagentToolDenyArgs()`) dan env `PI_DENY_TOOLS` (dibaca `index.ts` untuk skip registrasi tool).
 - **Skill inheritance**: sub-agent mewarisi SEMUA skill secara default, kecuali agent secara eksplisit memiliki `skill:` frontmatter (maka `--no-skills` dipakai). `agents.<name>.skills` di config bersifat append (deduped).
 - `prompt-inject.ts` guards orchestration notice via `PI_SUBAGENT_NAME` — only injects `<!-- subagent-orch-start -->` for the main agent, NOT sub-agents
-- Agent `.md` files use `system-prompt: replace` (was `append`). The agent body IS the complete system prompt — must embed tool definitions and usage guidelines
+- Agent `.md` files use `system-prompt: append`. The agent body appends role-specific focus and tool usage priorities to Pi's base prompt (which automatically provides tool descriptions and rules)
 - Skills can be added per agent via `skill:` frontmatter in `.md`, or via `agents.<name>.skills` in `subagent-config.json`. Skills are injected as `/skill:name` prompt args. Custom extensions from frontmatter or config are NOT loaded — only `subagent-done.ts` is injected as the mandatory extension.
 - `spin.ts` generates a raw subagent id via `generateRandomId`
 - Status transitions go through `status.ts:advanceStatusState()` — never mutate statusState directly
@@ -60,7 +60,7 @@ The subagent extension for pi — spawn, orchestrate, and manage sub-agent sessi
 - New mux operations go in `mux.ts`, new layout logic goes in `mux-layout.ts` or `monocle.ts` for window-based monocle layout
 - Resize backends go in `herdr-mux.ts` and `tmux-mux.ts` — dispatch through closures in `mux.ts:createSurface()`
 - All config/agent resolution goes through `agent.ts` and `config.ts`. Configuration is static JSON only: users edit `.pi/subagent-config.json` or `~/.pi/agent/subagent-config.json` directly. There is no interactive config wizard and no `/subagent-config` command.
-- **Sub-agent prompt minimization**: every sub-agent strips unnecessary layers (pi base prompt via `replace`, project context via `--no-context-files`, orchestration via `PI_SUBAGENT_NAME` guard); `--no-skills` is applied only when the agent explicitly configures skills. Custom extensions are disabled — only `subagent-done.ts` is injected.
+- **Sub-agent prompt minimization**: every sub-agent inherits Pi base prompt with dynamic tool rules via `append`, strips project context via `--no-context-files` for worker, guards orchestration via `PI_SUBAGENT_NAME`; `--no-skills` is applied only when the agent explicitly configures skills. Custom extensions are disabled — only `subagent-done.ts` is injected.
 - **Status tool has no rate limiting**: `subagent_status` always returns a fresh live snapshot on each call. There is no minimum interval, no backoff, and no snapshot cache. The `status` config object only carries `enabled` and `lineLimit`.
 - **No IPC coordination plane**: there is no `send_messages` / check-messages tool and no delegate mode. Children communicate only through their exit sidecar; the orchestrator polls live status and resumes sessions.
 
