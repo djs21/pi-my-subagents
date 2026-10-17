@@ -38,3 +38,4 @@ test/coverage/
 
 # Beads / Dolt files (added by bd init)
 .beads/proxieddb/
+.beads/interactions.jsonl
