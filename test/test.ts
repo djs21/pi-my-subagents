@@ -58,6 +58,9 @@ import {
 import subagentDoneExtension from "../pi-extension/subagents/subagent-done.ts";
 import { __pollForExitTest__ } from "../pi-extension/subagents/mux.ts";
 
+// Ensure inherited subagent environment does not suppress orchestrator tools during tests
+delete process.env.PI_DENY_TOOLS;
+
 // --- Helpers ---
 
 function createTestDir(): string {

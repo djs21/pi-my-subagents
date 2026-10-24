@@ -64,7 +64,7 @@ describe("resume.ts - Auto-detection and Tool Resolution", () => {
   after(() => {
     rmSync(dir, { recursive: true, force: true });
   });
-  it("Slice 2: Auto-detects agent from session and builds full allowlist for PNR", async () => {
+  it("Slice 2: Auto-detects agent from session and inherits full tool surface for PNR", async () => {
     const { resolveResumeTools } = await import("../pi-extension/subagents/resume.ts");
     const { resolveDenyTools } = await import("../pi-extension/subagents/enforce.ts");
     const sessionFile = join(dir, "pnr-session.jsonl");
@@ -77,21 +77,48 @@ describe("resume.ts - Auto-detection and Tool Resolution", () => {
     // Orchestrator calls resume WITHOUT specifying agent
     const result = resolveResumeTools({ sessionPath: sessionFile });
     assert.equal(result.resolvedAgent, "pnr");
-    // PNR declares explicit tools in frontmatter → allowlist is honored
-    assert.ok(result.toolAllowlist, "toolAllowlist must not be null for an agent with explicit tools");
-    const tools = result.toolAllowlist!.split(",");
-    assert.ok(tools.includes("write"), "must include write");
-    assert.ok(tools.includes("search"), "must include search");
-    assert.ok(tools.includes("files"), "must include files");
-    assert.ok(tools.includes("context"), "must include context");
-    assert.ok(tools.includes("explore"), "must include explore");
-    assert.ok(tools.includes("read"), "must include read");
-    assert.ok(tools.includes("bash"), "must include bash");
-    assert.ok(tools.includes("subagent_done"), "must include subagent_done");
+    // Bundled PNR does not declare restrictive tools frontmatter → inherits all tools (null allowlist)
+    assert.equal(result.toolAllowlist, null, "toolAllowlist must be null for bundled PNR to inherit all tools");
     // Orchestrator tools are always denied, regardless of agent
     const denied = resolveDenyTools(result.agentDefs);
     for (const tool of ["subagent", "subagent_resume", "subagent_interrupt", "subagent_status", "subagents_list"]) {
       assert.equal(denied.has(tool), true, `must deny ${tool}`);
+    }
+  });
+  it("Slice 2b: Honors explicit tools frontmatter when present on custom agent", async () => {
+    const { resolveResumeTools } = await import("../pi-extension/subagents/resume.ts");
+    const prevCwd = process.cwd();
+    const prevAgentDir = process.env.PI_CODING_AGENT_DIR;
+    const root = mkdtempSync(join(tmpdir(), "subagents-custom-tools-"));
+    const agentsDir = join(root, ".pi", "agents");
+    mkdirSync(agentsDir, { recursive: true });
+    writeFileSync(
+      join(agentsDir, "custom-tools-agent.md"),
+      "---\nname: custom-tools-agent\ntools: read, bash, write\nmodel: anthropic/test\n---\n\nAgent with explicit tools.\n",
+    );
+    process.chdir(root);
+    process.env.PI_CODING_AGENT_DIR = join(root, "global");
+    try {
+      const sessionFile = join(dir, "custom-tools-session.jsonl");
+      seedSubagentSessionFile({
+        mode: "standalone",
+        childSessionFile: sessionFile,
+        childCwd: process.cwd(),
+        agent: "custom-tools-agent",
+      });
+      const result = resolveResumeTools({ sessionPath: sessionFile });
+      assert.equal(result.resolvedAgent, "custom-tools-agent");
+      assert.ok(result.toolAllowlist);
+      const tools = result.toolAllowlist!.split(",");
+      assert.ok(tools.includes("read"));
+      assert.ok(tools.includes("bash"));
+      assert.ok(tools.includes("write"));
+      assert.ok(tools.includes("subagent_done"));
+    } finally {
+      process.chdir(prevCwd);
+      if (prevAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = prevAgentDir;
+      rmSync(root, { recursive: true, force: true });
     }
   });
   it("Slice 3: Explicit agent parameter overrides session header agent", async () => {
@@ -118,10 +145,7 @@ describe("resume.ts - Auto-detection and Tool Resolution", () => {
     const result = resolveResumeTools({ sessionPath: sessionFile, agent: "nonexistent_custom_agent" });
     // Fallback to worker
     assert.equal(result.resolvedAgent, "worker");
-    assert.ok(result.toolAllowlist);
-    const tools = result.toolAllowlist!.split(",");
-    assert.ok(tools.includes("read"));
-    assert.ok(tools.includes("bash"));
+    assert.equal(result.toolAllowlist, null, "worker fallback inherits all tools (no allowlist)");
   });
   it("Slice 4: Explicit tools override takes top precedence", async () => {
     const { resolveResumeTools } = await import("../pi-extension/subagents/resume.ts");
@@ -140,7 +164,7 @@ describe("resume.ts - Auto-detection and Tool Resolution", () => {
     assert.ok(tools.includes("custom_tool"));
     assert.ok(tools.includes("read"));
   });
-  it("Slice 5: Worker resumed without agent param preserves worker tools", async () => {
+  it("Slice 5: Worker resumed without agent param inherits all tools", async () => {
     const { resolveResumeTools } = await import("../pi-extension/subagents/resume.ts");
     const sessionFile = join(dir, "worker-auto.jsonl");
     seedSubagentSessionFile({
@@ -151,15 +175,10 @@ describe("resume.ts - Auto-detection and Tool Resolution", () => {
     });
     const result = resolveResumeTools({ sessionPath: sessionFile });
     assert.equal(result.resolvedAgent, "worker");
-    // Worker declares explicit tools in frontmatter → allowlist is honored
-    assert.ok(result.toolAllowlist);
-    const tools = result.toolAllowlist!.split(",");
-    assert.ok(tools.includes("read"));
-    assert.ok(tools.includes("bash"));
-    assert.ok(tools.includes("write"));
-    assert.ok(tools.includes("edit"));
+    // Worker no longer declares explicit tools in frontmatter → inherits all tools
+    assert.equal(result.toolAllowlist, null, "worker inherits all tools (no allowlist)");
   });
-  it("Slice 5: Reviewer resumed without agent param preserves reviewer tools & identity", async () => {
+  it("Slice 5: Reviewer resumed without agent param inherits all tools & preserves identity", async () => {
     const { resolveResumeTools } = await import("../pi-extension/subagents/resume.ts");
     const sessionFile = join(dir, "reviewer-auto.jsonl");
     seedSubagentSessionFile({
@@ -170,11 +189,8 @@ describe("resume.ts - Auto-detection and Tool Resolution", () => {
     });
     const result = resolveResumeTools({ sessionPath: sessionFile });
     assert.equal(result.resolvedAgent, "reviewer");
-    assert.ok(result.toolAllowlist);
-    const tools = result.toolAllowlist!.split(",");
-    assert.ok(tools.includes("read"));
-    assert.ok(tools.includes("bash"));
-    assert.ok(tools.includes("write"));
+    // Reviewer no longer declares explicit tools in frontmatter → inherits all tools
+    assert.equal(result.toolAllowlist, null, "reviewer inherits all tools (no allowlist)");
   });
 
   it("New model: agent without explicit tools inherits the full environment tool surface", async () => {

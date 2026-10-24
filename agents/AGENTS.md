@@ -14,7 +14,8 @@ Bundled agent definitions for the pi-my-subagent extension. Each `.md` file defi
 
 ## Local Contracts
 
-- Agent definitions are markdown files with YAML frontmatter for model, tools, skills, and body
+- Agent definitions are markdown files with YAML frontmatter for model, skills, and optional tools or deny-tools
+- Bundled agents (`worker`, `reviewer`, `pnr`) do not set `tools:` in frontmatter by default to enable full tool inheritance from the host environment
 - Agent names should be lowercase for case-insensitive matching in `agent.ts:loadAgentDefaults()`
 - All agent defs use `system-prompt: append`. Pi automatically provides base system instructions, dynamic tool schemas, and tool usage guidelines, while the agent body appends role-specific focus, tool priorities, and workflow rules
 - Agent bodies specify tool usage priorities (preferring dedicated tools over bash) without duplicating tool definitions already maintained by Pi
@@ -25,7 +26,7 @@ Bundled agent definitions for the pi-my-subagent extension. Each `.md` file defi
 
 - Add new agents by creating a new `.md` file in this directory
 - Agent definitions are auto-discovered by `agent.ts:discoverAgentDefinitions()`
-- Agents default to inheriting all environment tools; orchestrator tools (subagent, subagent_resume, subagent_interrupt, subagent_status, subagents_list) are always denied via `enforce.ts`
+- Agents default to inheriting all environment tools (bundled agents omit `tools:` in frontmatter); orchestrator tools (subagent, subagent_resume, subagent_interrupt, subagent_status, subagents_list) are always denied via `enforce.ts`
 - The `autoExit: true` frontmatter flag makes a subagent run autonomously (no user interaction)
 - **Keep prompts minimal**: each agent body should only contain role-specific focus, tool usage priorities, and workflow rules. Do not duplicate Pi's automatic tool descriptions or base system rules.
 

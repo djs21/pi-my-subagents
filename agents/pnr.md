@@ -1,7 +1,6 @@
 ---
 name: pnr
 description: Plans and researches tasks - analyzes requirements, explores codebase, produces structured plan + todos for worker execution
-tools: read, bash, search, files, node, callers, callees, impact, context, explore, find, ls, write
 model: anthropic/claude-sonnet-4-6
 thinking: medium
 auto-exit: true
