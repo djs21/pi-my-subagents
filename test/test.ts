@@ -1294,6 +1294,28 @@ describe("subagent discovery", () => {
     assert.equal(denied.has("subagent_status"), true);
   });
 
+  it("bundled reviewer and pnr enforce deny-tools safety constraints", () => {
+    const reviewerDefs = testApi.loadAgentDefaults("reviewer");
+    assert.ok(reviewerDefs, "reviewer agent should be discoverable");
+    assert.equal(reviewerDefs.denyTools, "edit, write");
+    const reviewerDenied = testApi.resolveDenyTools(reviewerDefs);
+    assert.equal(reviewerDenied.has("edit"), true, "reviewer must deny edit");
+    assert.equal(reviewerDenied.has("write"), true, "reviewer must deny write");
+
+    const pnrDefs = testApi.loadAgentDefaults("pnr");
+    assert.ok(pnrDefs, "pnr agent should be discoverable");
+    assert.equal(pnrDefs.denyTools, "edit");
+    const pnrDenied = testApi.resolveDenyTools(pnrDefs);
+    assert.equal(pnrDenied.has("edit"), true, "pnr must deny edit");
+    assert.equal(pnrDenied.has("write"), false, "pnr must allow write");
+
+    const workerDefs = testApi.loadAgentDefaults("worker");
+    assert.ok(workerDefs, "worker agent should be discoverable");
+    const workerDenied = testApi.resolveDenyTools(workerDefs);
+    assert.equal(workerDenied.has("edit"), false, "worker must allow edit");
+    assert.equal(workerDenied.has("write"), false, "worker must allow write");
+  });
+
   it("buildSubagentToolDenyArgs emits --exclude-tools for the full deny set", () => {
     const denied = testApi.resolveDenyTools({ denyTools: "claude" });
     const args = testApi.buildSubagentToolDenyArgs(denied);

@@ -5,6 +5,7 @@ model: anthropic/claude-sonnet-4-6
 thinking: medium
 auto-exit: true
 spawning: false
+deny-tools: edit
 system-prompt: append
 ---
 

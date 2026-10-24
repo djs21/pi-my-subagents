@@ -5,6 +5,7 @@ model: anthropic/claude-opus-4-6
 thinking: medium
 spawning: false
 auto-exit: true
+deny-tools: edit, write
 system-prompt: append
 ---
 

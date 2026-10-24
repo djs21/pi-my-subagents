@@ -16,6 +16,10 @@ Bundled agent definitions for the pi-my-subagent extension. Each `.md` file defi
 
 - Agent definitions are markdown files with YAML frontmatter for model, skills, and optional tools or deny-tools
 - Bundled agents (`worker`, `reviewer`, `pnr`) do not set `tools:` in frontmatter by default to enable full tool inheritance from the host environment
+- **Role safety contracts via `deny-tools`**:
+  - `reviewer` enforces strict read-only auditing by denying mutation tools: `deny-tools: edit, write`
+  - `pnr` enforces plan-only scoping: denies `deny-tools: edit` while retaining `write` to emit plans/artifacts
+  - `worker` retains full mutation capability (`edit`, `write`) to execute tasks and code changes
 - Agent names should be lowercase for case-insensitive matching in `agent.ts:loadAgentDefaults()`
 - All agent defs use `system-prompt: append`. Pi automatically provides base system instructions, dynamic tool schemas, and tool usage guidelines, while the agent body appends role-specific focus, tool priorities, and workflow rules
 - Agent bodies specify tool usage priorities (preferring dedicated tools over bash) without duplicating tool definitions already maintained by Pi
